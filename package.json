@@ -1,0 +1,5 @@
+{
+  "name": "kanban-workspace",
+  "private": true,
+  "workspaces": ["packages/*"]
+}
