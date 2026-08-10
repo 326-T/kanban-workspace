@@ -29,7 +29,7 @@ type RunEvent =
 | エンジン | 接続方法（実装時に最新仕様を要確認） | 備考 |
 |---|---|---|
 | Claude | Claude Agent SDK（TypeScript）。ツール実行の許可コールバックを `permission_request` にマップ | bun 上で直接動かせるため最も密に統合できる。第一実装対象 |
-| Codex | codex CLI の headless 実行（JSON ストリーム）。approval policy を最も安全側に設定し、承認をこちらで扱う | Rust バイナリのためコンテナ内でプロセスとして管理 |
+| Codex | codex CLI の headless 実行（JSON ストリーム）。approval policy を最も安全側に設定し、承認をこちらで扱う | Rust バイナリのためサンドボックス内でプロセスとして管理 |
 | ローカル LLM | OpenAI 互換エンドポイント（Ollama / vLLM 等） | 下記の 2 経路 |
 
 ## ローカル LLM の 2 経路

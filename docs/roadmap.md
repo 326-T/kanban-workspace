@@ -13,7 +13,7 @@
 含むもの：
 
 - **Control plane**（bun + Postgres）：Run lifecycle API、append-only イベントログ
-- **Runner**：Run ごとの Docker コンテナ起動・回収、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
+- **Runner**：Run ごとのサンドボックス付きプロセス起動・回収（bwrap / Seatbelt、Docker 非依存）、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
 - **Claude アダプタ**（Agent SDK）：RunEvent への正規化、`permission_request` / `question` の露出
 - **クレデンシャルプロキシ v0**：Anthropic キーをプラットフォーム側で保持し、Run にはプロキシエンドポイントのみ渡す。利用量を Run / 主体単位で記録（D9）
 - **CLI**：`run start` / `run attach`（イベント stream + 質問応答・承認）/ `run ls` / `run log`
@@ -49,6 +49,6 @@ kw usage               # Run 単位のトークン使用量が見える
 
 ## M0 の実装スタック（PoC 固定、後で差し替え可）
 
-- bun + TypeScript の monorepo：`control-plane` / `adapter-claude` / `cli` / `shared`（型・イベント定義）
-- Postgres・Run コンテナは Docker（docker compose で一式起動）
+- bun + TypeScript の monorepo：`control-plane` / `adapter-claude` / `cli` / `shared`（型・イベント定義）。ランタイムは bun で確定（D11）
+- Postgres は docker compose、Run は OS サンドボックス付きホストプロセス（D12。Run 経路は Docker 非依存）
 - API は HTTP + SSE（双方向が必要な箇所のみ WS を検討）
