@@ -13,7 +13,7 @@
 含むもの：
 
 - **Control plane**（bun + Postgres）：Run lifecycle API、append-only イベントログ
-- **Runner**：Run ごとのサンドボックス付きプロセス起動・回収（bwrap / Seatbelt、Docker 非依存）、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
+- **Runner**：Run ごとのサンドボックス付きプロセス起動・回収（bwrap、Docker 非依存。非 Linux での開発は `none` バックエンド）、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
 - **Claude アダプタ**（Agent SDK）：RunEvent への正規化、`permission_request` / `question` の露出
 - **クレデンシャルプロキシ v0**：Anthropic キーをプラットフォーム側で保持し、Run にはプロキシエンドポイントのみ渡す。利用量を Run / 主体単位で記録（D9）
 - **CLI**：`run start` / `run attach`（イベント stream + 質問応答・承認）/ `run ls` / `run log`

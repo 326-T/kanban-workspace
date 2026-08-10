@@ -32,7 +32,7 @@ graph TB
 | Control Plane | bun（TypeScript） | API・WebSocket 配信・ボード状態・スケジューラ（WIP 制限に従い Ready から Run を起動） |
 | Postgres | — | 全状態 + append-only イベントログ（監査・リアルタイム配信の源泉） |
 | Runner | Control Plane 内 or 分離プロセス | Run ごとにサンドボックス付きプロセスを起動・監視・回収（バックエンド差し替え可） |
-| Run サンドボックス | bwrap / Landlock（Linux）、Seatbelt（macOS 開発時） | エンジン（Claude / Codex）と、それが spawn する全サブプロセスの実行境界。マウントテーブル由来の FS 制限を強制 |
+| Run サンドボックス | bwrap + cgroups / Landlock（実行サーバは Linux 前提） | エンジン（Claude / Codex）と、それが spawn する全サブプロセスの実行境界。マウントテーブル由来の FS 制限を強制 |
 | MCP ゲートウェイ | bun | MCP の ACL 判定・監査・レート制御（[permission/model.md](../permission/model.md)） |
 | クレデンシャルプロキシ | bun | モデル API・外部アイデンティティのトークンを秘匿し代理実行・利用量記録（[../workspace/identity.md](../workspace/identity.md)） |
 | Hook サンドボックス | deno | ユーザ定義フックの実行。deno の permission モデルでネットワーク・FS を絞った安全な実行 |
@@ -48,10 +48,11 @@ graph TB
 Run は Docker コンテナではなく、**OS サンドボックスを付けたホストプロセス**として起動する。
 
 - 「JS プロセス単位」の隔離では不十分：エージェントは任意のサブプロセスを spawn するため、サンドボックスは JS ランタイムの外側・OS 層に置く必要がある
-- 実装：Linux = bubblewrap（マウント名前空間 — マウントテーブルがそのまま bind 指定になる）+ cgroups / Landlock。macOS（開発時）= Seatbelt。Claude Code 自身がこの方式（Anthropic の sandbox-runtime）で動いており、実装候補として流用できる
-- 十分性の根拠：テナント分離は VM 境界（D3）が担う。VM 内サンドボックスの目的は「同一組織内の権限強制」であり、名前空間 / Seatbelt で足りる。カーネルレベルの escape は VM 境界で受け止める
-- 利点：起動が即時（イメージ管理なし）、Docker デーモン非依存、macOS 開発がそのまま動く
-- **Runner はバックエンド差し替え可能**：`sandbox-process`（既定）/ `container`（再現可能なツールチェーンや強い隔離が必要な場合のオプション）。どちらもマウントテーブルの翻訳として実現する
+- 実装：**実行サーバは Linux 前提**。bubblewrap（マウント名前空間 — マウントテーブルがそのまま bind 指定になる）+ cgroups（systemd-run）/ Landlock。Claude Code 自身がこの方式（Anthropic の sandbox-runtime）で動いており、流用候補
+- サンドボックス層は**既存 OS ツールの合成**として実装し、新規のネイティブコードは書かない。隔離は OS が担うため合成を指揮する言語は問わない — M0 は bun/TS から spawn で合成し、Landlock の細調整や spawn 性能が必要になったら runner-shim を別言語（Rust 等）で切り出す。差し替え点は Runner バックエンド境界として確保済み
+- 十分性の根拠：テナント分離は VM 境界（D3）が担う。VM 内サンドボックスの目的は「同一組織内の権限強制」であり、名前空間ベースで足りる。カーネルレベルの escape は VM 境界で受け止める
+- 利点：起動が即時（イメージ管理なし）、Docker デーモン非依存
+- **Runner はバックエンド差し替え可能**：`bwrap`（既定）/ `none`（非 Linux での開発用。サンドボックスなしであることを明示・警告して動かす）/ `container`（再現可能なツールチェーンや強い隔離が必要な場合のオプション）。いずれもマウントテーブルの翻訳として実現する
 - ネットワーク：M0 は「クレデンシャル不在＋プロキシ経由」を基本とし、ネットワーク名前空間の完全分離は強化課題（O12）
 
 ## 未決
