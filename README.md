@@ -41,7 +41,8 @@
 | [docs/workspace/resources.md](docs/workspace/resources.md) | リソース語彙・タグ・マウントテーブル |
 | [docs/workspace/identity.md](docs/workspace/identity.md) | アイデンティティと来歴 |
 | [docs/decisions.md](docs/decisions.md) | 決定ログと未決事項 |
+| [docs/roadmap.md](docs/roadmap.md) | 実装ロードマップ（M0: 実行基盤〜） |
 
 ## ステータス
 
-設計フェーズ。実装未着手。
+設計フェーズ。実装は [docs/roadmap.md](docs/roadmap.md) の M0（実行基盤 = Run カーネル）から着手する。UI は API の投影として最後に作る。
