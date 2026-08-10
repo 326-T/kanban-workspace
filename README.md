@@ -12,6 +12,7 @@
 4. **エージェントを信頼しない** — 権限の enforcement は FS マウント・MCP ゲートウェイ・API キープロキシの 3 点に集約する
 5. **エンジン非依存** — Claude / Codex / ローカル LLM をアダプタで抽象化する
 6. **成果物は docs-as-code** — スライドは Marp 等、Office 的成果物もテキストで表現し OSS ツールチェーンでレンダリングする
+7. **アイデンティティは文脈から** — 誰の行為かはプラットフォームが行為の文脈（主体 × Run）から導出する。環境のグローバル状態に依存しない。完全な来歴はイベントログが持ち、git はその投影
 
 ## 決定済みの方針
 
@@ -37,6 +38,8 @@
 | [docs/runtime/engines.md](docs/runtime/engines.md) | エンジンアダプタとローカル LLM |
 | [docs/orchestration/hooks.md](docs/orchestration/hooks.md) | イベントフックと HITL |
 | [docs/workspace/artifacts.md](docs/workspace/artifacts.md) | ワークスペースと成果物 |
+| [docs/workspace/resources.md](docs/workspace/resources.md) | リソース語彙・タグ・マウントテーブル |
+| [docs/workspace/identity.md](docs/workspace/identity.md) | アイデンティティと来歴 |
 | [docs/decisions.md](docs/decisions.md) | 決定ログと未決事項 |
 
 ## ステータス

@@ -18,7 +18,7 @@ graph TB
         cp --> runner[Runner]
         runner --> c1[Run コンテナ × N]
         c1 --> gw[MCP ゲートウェイ]
-        c1 --> kp[API キープロキシ]
+        c1 --> kp[クレデンシャルプロキシ]
         cp --> hooks[Hook サンドボックス（deno）]
     end
     kp --> llm[Anthropic / OpenAI / ローカル LLM]
@@ -34,7 +34,7 @@ graph TB
 | Runner | Control Plane 内 or 分離プロセス | Run ごとにコンテナを起動・監視・回収 |
 | Run コンテナ | Docker 等 | エンジン（Claude / Codex）の実行環境。権限のあるパスだけをマウント |
 | MCP ゲートウェイ | bun | MCP の ACL 判定・監査・レート制御（[permission/model.md](../permission/model.md)） |
-| API キープロキシ | bun | モデル API の中継・キー秘匿・利用量記録 |
+| クレデンシャルプロキシ | bun | モデル API・外部アイデンティティのトークンを秘匿し代理実行・利用量記録（[../workspace/identity.md](../workspace/identity.md)） |
 | Hook サンドボックス | deno | ユーザ定義フックの実行。deno の permission モデルでネットワーク・FS を絞った安全な実行 |
 
 ## bun / deno の役割分担
