@@ -4,5 +4,9 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "server": "bun packages/server/src/index.ts"
+  },
+  "devDependencies": {
+    "bun-plugin-tailwind": "^0.1.2",
+    "tailwindcss": "^4.3.3"
   }
 }

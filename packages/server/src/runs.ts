@@ -2,32 +2,20 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { claudeAdapter } from "@kw/adapter-claude";
-import { now, type EngineAdapter, type RunEvent } from "@kw/shared";
+import {
+  now,
+  type EngineAdapter,
+  type PendingPermission,
+  type RunEvent,
+  type RunInfo,
+  type RunState,
+} from "@kw/shared";
 
 // Run のサーバ側管理（コントロールプレーン v0）。
 // CLI と同じ AdapterIO を HTTP/SSE に橋渡しする。
+// RunInfo / RunState は @kw/shared で定義し web と共有する。
 
-export type RunState = "running" | "waiting_input" | "completed" | "failed";
-
-export type PendingPermission = {
-  requestId: string;
-  tool: string;
-  title?: string;
-  inputPreview: string;
-};
-
-export type RunInfo = {
-  id: string;
-  prompt: string;
-  cwd: string;
-  model?: string;
-  engine: string;
-  state: RunState;
-  costUsd?: number;
-  autoApprove: boolean;
-  createdAt: string;
-  pendingPermission?: PendingPermission;
-};
+export type { PendingPermission, RunInfo, RunState } from "@kw/shared";
 
 const engines: Record<string, EngineAdapter> = { claude: claudeAdapter };
 
