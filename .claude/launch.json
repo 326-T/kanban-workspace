@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kw-server",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["packages/server/src/index.ts"],
+      "port": 4646
+    }
+  ]
+}

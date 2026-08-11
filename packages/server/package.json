@@ -1,0 +1,11 @@
+{
+  "name": "@kw/server",
+  "version": "0.0.1",
+  "type": "module",
+  "dependencies": {
+    "@kw/adapter-claude": "workspace:*",
+    "@kw/shared": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

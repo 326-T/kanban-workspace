@@ -1,5 +1,8 @@
 {
   "name": "kanban-workspace",
   "private": true,
-  "workspaces": ["packages/*"]
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "server": "bun packages/server/src/index.ts"
+  }
 }
