@@ -80,8 +80,12 @@ export const claudeAdapter: EngineAdapter = {
         // env は「置換」であり継承されないため process.env を明示的に敷く。
         // spec.env で git identity 等の文脈を注入する
         env: { ...process.env, ...(spec.env ?? {}) } as Record<string, string>,
-        // Run は隔離された実行。実行者ローカルの設定・CLAUDE.md は読み込まない
+        // Run は隔離された実行。実行者ローカルの設定・worktree 内の
+        // .claude/settings.json は読み込まない（エージェントの自己昇格を防ぐ）
         settingSources: [],
+        // 権限コンパイラの出力を注入（D14）
+        ...(spec.settings ? { settings: spec.settings as never } : {}),
+        ...(spec.managedSettings ? { managedSettings: spec.managedSettings as never } : {}),
         permissionMode: "default",
         canUseTool: async (toolName: string, toolInput: Record<string, unknown>, { requestId, title }: any) => {
           io.emit({ type: "permission_request", requestId, tool: toolName, input: toolInput, title, ts: now() });

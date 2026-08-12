@@ -7,6 +7,10 @@ export type RunSpec = {
   model?: string;
   // Run プロセスに注入する追加環境変数（git identity の文脈導出などに使う）
   env?: Record<string, string>;
+  // 権限コンパイラ（D14）の出力。allow/ask は settings、
+  // 覆せない下限 deny は managedSettings に載せてエンジンへ注入する
+  settings?: unknown;
+  managedSettings?: unknown;
 };
 
 // 承認の結果。by は実際に判断した主体（自動承認は "auto"）
