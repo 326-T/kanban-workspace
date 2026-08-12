@@ -13,33 +13,39 @@ SaaS を志向するが、マルチテナントをアプリ内では作らない
 ```mermaid
 graph TB
     subgraph vm[組織 VM（シングルテナント）]
-        ui[Web UI] --> cp[Control Plane（bun）]
-        cp --> db[(Postgres<br/>イベントログ)]
-        cp --> runner[Runner]
-        runner --> c1[Run サンドボックス × N]
-        c1 --> gw[MCP ゲートウェイ]
-        c1 --> kp[クレデンシャルプロキシ]
-        cp --> hooks[Hook サンドボックス（deno）]
+        ui[Web UI] --> core[kw-core（Kotlin: Ktor + jOOQ）]
+        core --> db[(Postgres<br/>イベントログ)]
+        core --> engine[kw-engine（bun）<br/>エンジン呼び出し特化]
+        engine --> c1[Run サンドボックス × N]
+        core --> hooks[Hook サンドボックス（deno）]
     end
-    kp --> llm[Anthropic / OpenAI / ローカル LLM]
-    gw --> mcp[社内外 MCP サーバ]
+    c1 --> llm[Anthropic / OpenAI / ローカル LLM]
+    c1 --> mcp[社内外 MCP サーバ]
 ```
+
+MCP ツールの制御は D14 の `mcp__*` permissions ルールで行う（中央ゲートウェイは監査・レート制御・動的昇格が必要になった時点で B7 として追加）。クレデンシャルプロキシは PoC では実装しない（D13）。
 
 ## コンポーネントと責務
 
 | コンポーネント | 実装 | 責務 |
 |---|---|---|
-| Control Plane | bun（TypeScript） | API・WebSocket 配信・ボード状態・スケジューラ（WIP 制限に従い Ready から Run を起動） |
-| Postgres | — | 全状態 + append-only イベントログ（監査・リアルタイム配信の源泉） |
-| Runner | Control Plane 内 or 分離プロセス | Run ごとにサンドボックス付きプロセスを起動・監視・回収（バックエンド差し替え可） |
+| kw-core | Kotlin（Ktor + jOOQ） | **唯一の公開 API**。ドメイン（ユーザ / リソース / ACL / 組織木 / 承認・ボード）・権限コンパイル（D14）・worktree 準備と checkpoint コミット・イベントログの永続化と UI への SSE 再投影・UI（Vite ビルド）の静的配信・スケジューラ |
+| kw-engine | bun（TypeScript） | エンジン呼び出しに特化した軽量 API。Agent SDK / codex CLI を駆動して RunEvent を SSE で上流配信。状態は in-flight の Run のみ（永続化しない）。SDK↔CLI の内部プロトコルに触る唯一の場所 |
+| Postgres | jOOQ 経由 | 全状態 + append-only イベントログ（監査・再投影・再水和の源泉） |
 | Run サンドボックス | コンテナ（既定、D15）/ bwrap（Linux 軽量化オプション） | エンジン（Claude / Codex）と、それが spawn する全サブプロセスの実行境界。マウントテーブル由来の FS 制限を強制 |
-| MCP ゲートウェイ | bun | MCP の ACL 判定・監査・レート制御（[permission/model.md](../permission/model.md)） |
-| クレデンシャルプロキシ | bun | モデル API・外部アイデンティティのトークンを秘匿し代理実行・利用量記録（[../workspace/identity.md](../workspace/identity.md)） |
 | Hook サンドボックス | deno | ユーザ定義フックの実行。deno の permission モデルでネットワーク・FS を絞った安全な実行 |
 
-## bun / deno の役割分担
+## サービス間契約（D16）
 
-- **bun**：コントロールプレーン一式。速度と TypeScript エコシステム（Claude Agent SDK も TS）のため
+- **runId は kw-core が採番**し、kw-engine に渡す（イベント相関の主導権は core）
+- kw-engine の API：`POST /runs`（cwd・prompt・コンパイル済み permissions・env を受けて起動）/ `GET /runs/:id/events`（RunEvent の SSE、`id`=seq で Last-Event-ID 再開）/ `POST messages・permissions/:requestId・end`
+- **core が engine の SSE を購読して Postgres に永続化し、UI へは core 自身の SSE で再投影**する。「ログが真実・配信は投影」の担い手は core の DB（UI クライアントの再接続・途中参加・サーバ再起動後の再水和はすべてログから復元）
+- RunEvent（[@kw/shared](../../packages/shared/src/events.ts)）が言語間契約。JSON Schema 化して Kotlin 側の型を生成する
+
+## 言語と役割分担（D16）
+
+- **Kotlin（kw-core）**：ドメインモデリング（組織木・ACL・承認）と永続化。Ktor + jOOQ
+- **bun / TypeScript（kw-engine + Web UI）**：Agent SDK が TS のため、エンジン駆動は特化サービスとして bun に残す。UI は React/TS（Vite ビルドを core が配信）
 - **deno**：ユーザ定義コード（hooks）の実行系。権限ゼロから明示的に許可を足せる sandbox 特性が、「他人の書いたフックを共有サーバで走らせる」要件に合う
 - **プロセス隔離は OS サンドボックス層の仕事**：エージェントは任意のサブプロセス（bash・ビルドツール等）を spawn するため、JS ランタイムの権限モデルは境界にならない。FS/ネットワークの enforcement は OS サンドボックスで行う（下記）
 

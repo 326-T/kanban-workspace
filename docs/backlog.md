@@ -2,7 +2,7 @@
 
 これからやることの起票場所。GitHub Issues は使わず、このファイルで管理する（起票・クローズはコミットとして履歴に残る）。着手時はエントリ先頭に `→ WIP`、完了時は `✅ 完了 (コミット)` を付ける。
 
-**優先方針（2026-08-12）**：まず**ハッピーパス** — 複数ユーザが repo 上でエージェントを起動し、承認・レビューを回して成果物がマージされるまでの一連 — を通す。順序の目安：B6（権限・承認）→ B8（永続化）→ B4（usage）→ B3（CLI）。**B2（bwrap）と B5（Codex）は優先度低**（隔離強化とエンジン追加はハッピーパスの後）。
+**優先方針（2026-08-13 更新）**：まず D16 の 2 サービス分割（B10 → B11）を済ませてから、**ハッピーパス** — 複数ユーザが repo 上でエージェントを起動し、承認・レビューを回して成果物がマージされるまでの一連 — を通す。順序の目安：**B10（kw-engine 切り出し）→ B11（kw-core スケルトン、B8 を吸収）→ B6（権限・承認）→ B4（usage）→ B3（CLI）**。B2（コンテナ隔離）と B5（Codex）は優先度低。
 
 ---
 
@@ -55,7 +55,7 @@ PoC はシングルテナントで VM 内認証は過剰なため実装しない
 
 ## B6. [M1] 権限モデルと承認ルーティング 3 種
 
-**背景**：本企画の差別化の核。現状の承認は起動者本人のみ・リソースは登録制のみで ACL が無い。前提：B9 のユーザ登録簿（実装済み）。**方式は D14 の権限コンパイラ**：解決済み ACL をエンジンネイティブ設定（Claude Code permissions の allow/deny/ask）にコンパイルして注入し、ask だけが承認ルーティングに落ちる。
+**背景**：本企画の差別化の核。現状の承認は起動者本人のみ・リソースは登録制のみで ACL が無い。前提：B9 のユーザ登録簿（実装済み）→ D16 後は **kw-core（Kotlin）のドメインとして実装**。**方式は D14 の権限コンパイラ**：解決済み ACL をエンジンネイティブ設定（Claude Code permissions の allow/deny/ask）にコンパイルして注入し、ask だけが承認ルーティングに落ちる。
 
 - [ ] 主体（User / Agent）と組織木・職位ロールのモデル実装（B9 のユーザ登録簿を拡張）
 - [ ] ACL：リソース語彙（`repo:<name>` + glob、タグセレクタ）× 主体
@@ -78,16 +78,34 @@ PoC はシングルテナントで VM 内認証は過剰なため実装しない
 
 参照：[permission/model.md](permission/model.md)、[workspace/resources.md](workspace/resources.md) 昇格の非対称性
 
-## B8. [M1] Postgres 移行と Run の再水和（O14）
+## B8. [M1] Postgres 移行と Run の再水和（O14）→ **B11（kw-core）に統合**
 
-**背景**：サーバ再起動で in-memory の Run 一覧が消える（イベント JSONL は残るが再構成しない）。アーキテクチャどおり Postgres + append-only イベントログに移す。
+D16 により kw-core（Ktor + jOOQ）の初期実装そのものになったため、B11 に吸収。
 
-- [ ] イベントログを Postgres に永続化（JSONL は開発用エクスポートに格下げ or 併記）
-- [ ] 起動時にイベントログから Run 状態を再構成（イベントソーシングの初実装）
-- [ ] SSE の Last-Event-ID 再開を DB 由来のインデックスに接続
-- [ ] docker compose に Postgres を追加（ローカル完結を維持）
+## B10. [D16] kw-engine 切り出し — エンジン呼び出し特化の bun サーバ
 
-参照：[runtime/architecture.md](runtime/architecture.md)、O14
+**背景**：D16。既存の bun サーバから users / resources / worktree / UI 配信を取り除き、「Agent SDK / codex を駆動して RunEvent を SSE で流す」だけの軽量 API に絞る。
+
+- [ ] API：`POST /runs`（runId は呼び出し側=core が採番。cwd・prompt・permissions（settings / managedSettings）・env を受ける）/ `GET /runs/:id/events`（SSE、Last-Event-ID 再開）/ `POST messages・permissions/:requestId・end`
+- [ ] D14 の permissions 注入口を実装（settings / managedSettings をそのまま SDK オプションへ）
+- [ ] RunEvent の JSON Schema 化（言語間契約。Kotlin 側の型生成の元）
+- [ ] 状態は in-flight のみ・永続化なしに整理（JSONL 書き出しは core に移るまで暫定維持）
+
+参照：[runtime/architecture.md](runtime/architecture.md) サービス間契約、D16
+
+## B11. [D16] kw-core スケルトン — Ktor + jOOQ + Postgres（B8 を吸収）
+
+**背景**：D16。ドメインと永続化の本体。B8（イベントソーシング・再水和）はここの初期実装。
+
+- [ ] Ktor プロジェクト + jOOQ + Postgres（docker compose にサービス追加）
+- [ ] イベントログテーブル（append-only）と Run / User / Resource のドメインモデル
+- [ ] kw-engine のクライアント：Run 起動・SSE 購読 → Postgres 永続化
+- [ ] UI への SSE 再投影（Last-Event-ID = DB 連番）と既存 REST API の移植
+- [ ] worktree 準備・checkpoint コミット（git 操作）の移植
+- [ ] Web UI を Vite ビルドに切り替えて静的配信、既存 bun サーバの退役
+- [ ] 起動時再水和（O14 解消）
+
+参照：[runtime/architecture.md](runtime/architecture.md)、D16
 
 ## B9. ✅ 完了 — ユーザスイッチャ（認証なしのアカウント切替、D13）
 
