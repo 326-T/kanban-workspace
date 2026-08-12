@@ -42,6 +42,7 @@
 | [docs/workspace/identity.md](docs/workspace/identity.md) | アイデンティティと来歴 |
 | [docs/decisions.md](docs/decisions.md) | 決定ログと未決事項 |
 | [docs/roadmap.md](docs/roadmap.md) | 実装ロードマップ（M0: 実行基盤〜） |
+| [docs/backlog.md](docs/backlog.md) | バックログ（これからやること B1〜） |
 
 ## ステータス
 
