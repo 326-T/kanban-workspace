@@ -10,17 +10,18 @@
 
 PoC はシングルテナントで VM 内認証は過剰なため実装しない。モデル認証は実行者の CLI 認証を素通し、従量記録はイベントログ計測（B4）で担う。SaaS 化の際に再起票する。
 
-## B2. [優先度低] bwrap サンドボックスバックエンド — Linux 実行サーバの Run 隔離
+## B2. [優先度低] Run 隔離バックエンド — container（既定、D15）
 
-**背景**：D12。現状は `none` バックエンド（隔離なし・開発用）のみ。Linux 実行サーバ上で bwrap によるマウントテーブルの enforcement を実装する。
+**背景**：D14 の二層構成で hard 層は「粗い静的境界」になり、D15 で既定バックエンドを container に変更（O13 のツールチェーン再現性も同時解決）。ハッピーパス優先のため引き続き優先度低。現状は `none`（隔離なし・開発用）のみ。
 
-- [ ] Runner のバックエンド抽象（`none` / `bwrap`）を明示的なインターフェースに切り出す
-- [ ] マウントテーブル → bwrap の `--bind` / `--ro-bind` / `--tmpfs` 引数への翻訳
-- [ ] cgroups（systemd-run）での CPU / メモリ制限
-- [ ] Linux VM（実行サーバ想定環境）での動作確認。Anthropic sandbox-runtime の流用可否を評価
-- [ ] ネットワーク分離の強度は O12 として継続（v0 は「クレデンシャル不在 + プロキシ経由」まで）
+- [ ] Runner のバックエンド抽象（`none` / `container` / `bwrap`）を明示的なインターフェースに切り出す
+- [ ] kw-runner イメージ（Claude Code CLI + 標準ツールチェーン。SDK とのバージョン整合をピン。公式配布イメージは無いため自前ビルド、codex-universal を参考）
+- [ ] SDK `spawnClaudeCodeProcess` フックで docker run 経由のエンジン起動（マウントテーブル → volume 翻訳、stdio 素通し）
+- [ ] エンジン認証情報（CLI の OAuth）のコンテナへの受け渡し設計
+- [ ] ネットワークポリシー（O12、公式 devcontainer の default-deny egress が参考）とリソース制限
+- [ ] bwrap は Linux 本番の軽量化オプションとして後日
 
-参照：[runtime/architecture.md](runtime/architecture.md) Run の隔離モデル、D12 / O12
+参照：[runtime/architecture.md](runtime/architecture.md) Run の隔離モデル、D12 / D15 / O12
 
 ## B3. [M0] CLI をコントロールプレーン API クライアント化（repo 対応）
 

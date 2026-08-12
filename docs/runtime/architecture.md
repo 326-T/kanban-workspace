@@ -32,7 +32,7 @@ graph TB
 | Control Plane | bun（TypeScript） | API・WebSocket 配信・ボード状態・スケジューラ（WIP 制限に従い Ready から Run を起動） |
 | Postgres | — | 全状態 + append-only イベントログ（監査・リアルタイム配信の源泉） |
 | Runner | Control Plane 内 or 分離プロセス | Run ごとにサンドボックス付きプロセスを起動・監視・回収（バックエンド差し替え可） |
-| Run サンドボックス | bwrap + cgroups / Landlock（実行サーバは Linux 前提） | エンジン（Claude / Codex）と、それが spawn する全サブプロセスの実行境界。マウントテーブル由来の FS 制限を強制 |
+| Run サンドボックス | コンテナ（既定、D15）/ bwrap（Linux 軽量化オプション） | エンジン（Claude / Codex）と、それが spawn する全サブプロセスの実行境界。マウントテーブル由来の FS 制限を強制 |
 | MCP ゲートウェイ | bun | MCP の ACL 判定・監査・レート制御（[permission/model.md](../permission/model.md)） |
 | クレデンシャルプロキシ | bun | モデル API・外部アイデンティティのトークンを秘匿し代理実行・利用量記録（[../workspace/identity.md](../workspace/identity.md)） |
 | Hook サンドボックス | deno | ユーザ定義フックの実行。deno の permission モデルでネットワーク・FS を絞った安全な実行 |
@@ -43,17 +43,16 @@ graph TB
 - **deno**：ユーザ定義コード（hooks）の実行系。権限ゼロから明示的に許可を足せる sandbox 特性が、「他人の書いたフックを共有サーバで走らせる」要件に合う
 - **プロセス隔離は OS サンドボックス層の仕事**：エージェントは任意のサブプロセス（bash・ビルドツール等）を spawn するため、JS ランタイムの権限モデルは境界にならない。FS/ネットワークの enforcement は OS サンドボックスで行う（下記）
 
-## Run の隔離モデル（決定 D12）
+## Run の隔離モデル（D12 → D15 改訂）
 
-Run は Docker コンテナではなく、**OS サンドボックスを付けたホストプロセス**として起動する。
+Run の隔離は **Runner バックエンド**として差し替え可能にし（D12）、既定は **`container`**（D15）。
 
-- 「JS プロセス単位」の隔離では不十分：エージェントは任意のサブプロセスを spawn するため、サンドボックスは JS ランタイムの外側・OS 層に置く必要がある
-- 実装：**実行サーバは Linux 前提**。bubblewrap（マウント名前空間 — マウントテーブルがそのまま bind 指定になる）+ cgroups（systemd-run）/ Landlock。Claude Code 自身がこの方式（Anthropic の sandbox-runtime）で動いており、流用候補
-- サンドボックス層は**既存 OS ツールの合成**として実装し、新規のネイティブコードは書かない。隔離は OS が担うため合成を指揮する言語は問わない — M0 は bun/TS から spawn で合成し、Landlock の細調整や spawn 性能が必要になったら runner-shim を別言語（Rust 等）で切り出す。差し替え点は Runner バックエンド境界として確保済み
-- 十分性の根拠：テナント分離は VM 境界（D3）が担う。VM 内サンドボックスの目的は「同一組織内の権限強制」であり、名前空間ベースで足りる。カーネルレベルの escape は VM 境界で受け止める
-- 利点：起動が即時（イメージ管理なし）、Docker デーモン非依存
-- **Runner はバックエンド差し替え可能**：`bwrap`（既定）/ `none`（非 Linux での開発用。サンドボックスなしであることを明示・警告して動かす）/ `container`（再現可能なツールチェーンや強い隔離が必要な場合のオプション）。いずれもマウントテーブルの翻訳として実現する
-- ネットワーク：M0 は「クレデンシャル不在＋プロキシ経由」を基本とし、ネットワーク名前空間の完全分離は強化課題（O12）
+- 「JS プロセス単位」の隔離では不十分：エージェントは任意のサブプロセスを spawn するため、隔離は JS ランタイムの外側に置く（D12、不変）
+- **既定 = `container`**：D14 の二層構成により hard 層の役割は「worktree + ツールチェーン以外見えない粗い静的境界」に縮小し、コンテナの得意領域と一致する。イメージがツールチェーンを固定するため再現性（O13）も解決し、非 Linux 開発機でも実隔離が得られ、ネットワーク分離も容易（O12。Anthropic 公式 devcontainer も default-deny egress firewall 構成で先例になる）
+- 実装の第一候補：Agent SDK の `spawnClaudeCodeProcess` フックで**エンジンプロセスだけをコンテナ内で起動**する（アダプタはコントロールプレーン内のまま、stdio はコンテナ越しに素通し）。マウントテーブルは volume 指定に翻訳
+- **kw-runner イメージは自前ビルド**：Claude Code に公式配布イメージは無い（公式は devcontainer リファレンス + Dev Container Feature）。codex は `ghcr.io/openai/codex-universal` が参考になる。イメージ内 CLI と SDK のバージョン整合、エンジン認証情報（CLI の OAuth）の受け渡しが要設計
+- `bwrap`：Linux 本番での軽量化オプション（起動即時・イメージ管理不要が効く場面）。`none`：非コンテナ環境での開発用（隔離なしを明示・警告）
+- ネットワーク：M0 は「クレデンシャル不在＋プロキシ経由」を基本とし、コンテナのネットワークポリシーで強化する（O12）
 
 ## 未決
 

@@ -13,7 +13,7 @@
 含むもの：
 
 - **Control plane**（bun + Postgres）：Run lifecycle API、append-only イベントログ
-- **Runner**：Run ごとのサンドボックス付きプロセス起動・回収（bwrap、Docker 非依存。非 Linux での開発は `none` バックエンド）、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
+- **Runner**：Run ごとのサンドボックス付きプロセス起動・回収（既定バックエンドは container = D15。現状は `none` で動作）、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
 - **Claude アダプタ**（Agent SDK）：RunEvent への正規化、`permission_request` / `question` の露出
 - ~~クレデンシャルプロキシ v0~~（D13 で PoC スコープから除外。モデル認証は実行者の CLI 認証を素通し、従量記録はイベントログ計測で担う）
 - **CLI**：`run start` / `run attach`（イベント stream + 質問応答・承認）/ `run ls` / `run log`
@@ -21,7 +21,7 @@
 
 **含まないもの**：Web UI・ボード・MCP ゲートウェイ・組織木 / 承認ルーティング（承認は起動者本人のみ）・hooks・Codex・shared-volume・ローカル LLM
 
-**進捗（2026-08-12）**：Control plane（Run API + SSE）・Claude アダプタ・CLI・リソース登録 + worktree マウント + checkpoint コミット（agent 名義 + Run trailer）・Web UI（API の投影として前倒しで実装、shadcn/ui + AI Elements）・アカウントスイッチャ（認証なし、D13）まで動作確認済み。残り：CLI の repo 対応・`kw usage`（bwrap は優先度低 = ハッピーパス優先、Linux 実機待ち。[backlog.md](backlog.md) 参照）
+**進捗（2026-08-12）**：Control plane（Run API + SSE）・Claude アダプタ・CLI・リソース登録 + worktree マウント + checkpoint コミット（agent 名義 + Run trailer）・Web UI（API の投影として前倒しで実装、shadcn/ui + AI Elements）・アカウントスイッチャ（認証なし、D13）まで動作確認済み。残り：CLI の repo 対応・`kw usage`（隔離バックエンドは D15 で container 既定に変更、優先度低のまま。[backlog.md](backlog.md) B2）
 
 Exit criteria（このデモが通ること）：
 
