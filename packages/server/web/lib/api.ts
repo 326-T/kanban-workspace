@@ -1,9 +1,26 @@
-import type { Resource, RunInfo } from "@kw/shared";
+import type { Resource, RunInfo, User } from "@kw/shared";
 
 // コントロールプレーン API の型付きクライアント。
 // UI からのサーバアクセスは必ずここを経由する。
+// 行為者（acting user）は X-KW-User ヘッダで申告する（D13: 認証なし）。
 
-const jsonHeaders = { "content-type": "application/json" };
+let actingUser = typeof localStorage !== "undefined" ? (localStorage.getItem("kw-user") ?? "owner") : "owner";
+
+export const getActingUser = () => actingUser;
+export const setActingUser = (name: string) => {
+  actingUser = name;
+  localStorage.setItem("kw-user", name);
+};
+
+const req = (path: string, init?: RequestInit) =>
+  fetch(path, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      "x-kw-user": actingUser,
+      ...(init?.headers ?? {}),
+    },
+  });
 
 export type CreateRunInput = {
   prompt: string;
@@ -13,36 +30,35 @@ export type CreateRunInput = {
   autoApprove?: boolean;
 };
 
+async function jsonOrThrow<T>(res: Response): Promise<T> {
+  const body = await res.json();
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+  return body as T;
+}
+
 export const api = {
-  listResources: (): Promise<Resource[]> => fetch("/api/resources").then((r) => r.json()),
+  listUsers: (): Promise<User[]> => req("/api/users").then((r) => r.json()),
 
-  addResource: async (input: { name: string; path: string; tags?: string[] }): Promise<Resource> => {
-    const res = await fetch("/api/resources", {
-      method: "POST",
-      headers: jsonHeaders,
-      body: JSON.stringify(input),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error ?? "登録に失敗しました");
-    return body as Resource;
-  },
+  addUser: (input: { name: string; role?: string }): Promise<User> =>
+    req("/api/users", { method: "POST", body: JSON.stringify(input) }).then((r) => jsonOrThrow<User>(r)),
 
-  listRuns: (): Promise<RunInfo[]> => fetch("/api/runs").then((r) => r.json()),
+  listResources: (): Promise<Resource[]> => req("/api/resources").then((r) => r.json()),
+
+  addResource: (input: { name: string; path: string; tags?: string[] }): Promise<Resource> =>
+    req("/api/resources", { method: "POST", body: JSON.stringify(input) }).then((r) => jsonOrThrow<Resource>(r)),
+
+  listRuns: (): Promise<RunInfo[]> => req("/api/runs").then((r) => r.json()),
 
   createRun: (input: CreateRunInput): Promise<RunInfo> =>
-    fetch("/api/runs", { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) }).then((r) => r.json()),
+    req("/api/runs", { method: "POST", body: JSON.stringify(input) }).then((r) => jsonOrThrow<RunInfo>(r)),
 
   sendMessage: (id: string, text: string) =>
-    fetch(`/api/runs/${id}/messages`, { method: "POST", headers: jsonHeaders, body: JSON.stringify({ text }) }),
+    req(`/api/runs/${id}/messages`, { method: "POST", body: JSON.stringify({ text }) }),
 
-  endRun: (id: string) => fetch(`/api/runs/${id}/end`, { method: "POST" }),
+  endRun: (id: string) => req(`/api/runs/${id}/end`, { method: "POST" }),
 
   decidePermission: (id: string, requestId: string, allow: boolean) =>
-    fetch(`/api/runs/${id}/permissions/${requestId}`, {
-      method: "POST",
-      headers: jsonHeaders,
-      body: JSON.stringify({ allow }),
-    }),
+    req(`/api/runs/${id}/permissions/${requestId}`, { method: "POST", body: JSON.stringify({ allow }) }),
 
   eventsUrl: (id: string) => `/api/runs/${id}/events`,
 };

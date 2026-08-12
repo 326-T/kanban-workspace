@@ -34,14 +34,17 @@ export function prepareDir(dir?: string): PreparedWorkspace {
 // 未コミットの変更が無ければ何もしない。
 export function checkpointCommit(
   cwd: string,
-  meta: { runId: string; engine: string; prompt: string },
+  meta: { runId: string; engine: string; prompt: string; launchedBy?: string },
 ): { sha: string; summary: string } | null {
   const status = git(["-C", cwd, "status", "--porcelain"]).trim();
   if (!status) return null;
 
   git(["-C", cwd, "add", "-A"]);
   const title = (meta.prompt.split("\n")[0] ?? "").slice(0, 60);
-  const message = `checkpoint: ${title}\n\nRun: ${meta.runId}\nCheckpoint: true`;
+  const trailers = [`Run: ${meta.runId}`];
+  if (meta.launchedBy) trailers.push(`Launched-by: ${meta.launchedBy}`);
+  trailers.push("Checkpoint: true");
+  const message = `checkpoint: ${title}\n\n${trailers.join("\n")}`;
   git(["-C", cwd, "commit", "-m", message], agentGitEnv(meta.engine));
   const sha = git(["-C", cwd, "rev-parse", "HEAD"]).trim();
   const files = status.split("\n").length;

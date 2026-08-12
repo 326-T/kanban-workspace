@@ -9,10 +9,13 @@ export type RunSpec = {
   env?: Record<string, string>;
 };
 
+// 承認の結果。by は実際に判断した主体（自動承認は "auto"）
+export type PermissionDecision = { allowed: boolean; by: string };
+
 export type AdapterIO = {
   emit: (e: RunEvent) => void;
-  // 危険操作の承認。v0 は起動者本人のみ（承認ルーティングは M1）
-  requestPermission: (tool: string, input: unknown, title?: string) => Promise<boolean>;
+  // 危険操作の承認。承認ルーティング（上長エスカレーション）は M1
+  requestPermission: (tool: string, input: unknown, title?: string) => Promise<PermissionDecision>;
   // 次のユーザ入力。null でセッション終了。
   // アダプタがこれを呼ぶタイミング = エンジンがターンを終えて入力待ちになった時
   nextUserMessage: () => Promise<string | null>;

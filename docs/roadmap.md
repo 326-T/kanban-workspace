@@ -15,13 +15,13 @@
 - **Control plane**（bun + Postgres）：Run lifecycle API、append-only イベントログ
 - **Runner**：Run ごとのサンドボックス付きプロセス起動・回収（bwrap、Docker 非依存。非 Linux での開発は `none` バックエンド）、マウントテーブル v0（repo rw = カードブランチの worktree / ro チェックアウト / scratch）
 - **Claude アダプタ**（Agent SDK）：RunEvent への正規化、`permission_request` / `question` の露出
-- **クレデンシャルプロキシ v0**：Anthropic キーをプラットフォーム側で保持し、Run にはプロキシエンドポイントのみ渡す。利用量を Run / 主体単位で記録（D9）
+- ~~クレデンシャルプロキシ v0~~（D13 で PoC スコープから除外。モデル認証は実行者の CLI 認証を素通し、従量記録はイベントログ計測で担う）
 - **CLI**：`run start` / `run attach`（イベント stream + 質問応答・承認）/ `run ls` / `run log`
 - コミット規約 v0：author = エージェント名義、Run trailer（[workspace/identity.md](workspace/identity.md)）
 
 **含まないもの**：Web UI・ボード・MCP ゲートウェイ・組織木 / 承認ルーティング（承認は起動者本人のみ）・hooks・Codex・shared-volume・ローカル LLM
 
-**進捗（2026-08-12）**：Control plane（Run API + SSE）・Claude アダプタ・CLI・リソース登録 + worktree マウント + checkpoint コミット（agent 名義 + Run trailer）・Web UI（API の投影として前倒しで実装、shadcn/ui + AI Elements）まで動作確認済み。残り：クレデンシャルプロキシ v0・bwrap バックエンド（Linux 実機待ち）・CLI の repo 対応・`kw usage`
+**進捗（2026-08-12）**：Control plane（Run API + SSE）・Claude アダプタ・CLI・リソース登録 + worktree マウント + checkpoint コミット（agent 名義 + Run trailer）・Web UI（API の投影として前倒しで実装、shadcn/ui + AI Elements）・アカウントスイッチャ（認証なし、D13）まで動作確認済み。残り：CLI の repo 対応・`kw usage`（bwrap は優先度低 = ハッピーパス優先、Linux 実機待ち。[backlog.md](backlog.md) 参照）
 
 Exit criteria（このデモが通ること）：
 

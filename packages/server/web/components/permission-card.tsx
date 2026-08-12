@@ -12,7 +12,7 @@ export function PermissionCard({
   onDecide,
 }: {
   event: PermissionRequestEvent;
-  decision?: boolean;
+  decision?: { allowed: boolean; by: string };
   onDecide: (requestId: string, allow: boolean) => void;
 }) {
   const preview =
@@ -38,7 +38,7 @@ export function PermissionCard({
           </span>
         ) : (
           <span className="mt-1 text-xs">
-            {decision ? "✓ 許可しました" : "✗ 却下しました"}
+            {decision.allowed ? "✓ 許可" : "✗ 却下"}（{decision.by}）
           </span>
         )}
       </AlertDescription>

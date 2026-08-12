@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { AccountSwitcher } from "@/components/account-switcher";
 import { api } from "@/lib/api";
 import { useRuns } from "@/hooks/use-runs";
 import { useRunEvents } from "@/hooks/use-run-events";
@@ -25,6 +26,7 @@ export function App() {
           <h1 className="font-semibold">kanban-workspace</h1>
           <p className="text-muted-foreground text-xs">Run kernel v0 — UI は API の投影（D10）</p>
         </header>
+        <AccountSwitcher />
         <RunForm
           onCreated={(r) => {
             refresh();

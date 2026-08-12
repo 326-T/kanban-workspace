@@ -143,14 +143,15 @@ async function main() {
 
   const io = {
     emit,
-    requestPermission: async (tool: string, input: unknown, title?: string): Promise<boolean> => {
+    requestPermission: async (tool: string, input: unknown, title?: string) => {
       const label = title ?? `${tool}: ${short(input)}`;
       if (values.yes) {
         console.log(c.yellow(`🔓 自動承認 (--yes): ${label}`));
-        return true;
+        return { allowed: true, by: "auto" };
       }
       const ans = await nextLine(c.bold(`🔐 ${label}\n   許可しますか? [y/N] `));
-      return ans !== null && ans.trim().toLowerCase().startsWith("y"); // EOF は fail-closed
+      // EOF は fail-closed
+      return { allowed: ans !== null && ans.trim().toLowerCase().startsWith("y"), by: "launcher" };
     },
     nextUserMessage: async (): Promise<string | null> => {
       if (values.once) return null;

@@ -6,6 +6,7 @@ import {
   now,
   type EngineAdapter,
   type PendingPermission,
+  type PermissionDecision,
   type RunEvent,
   type RunInfo,
   type RunState,
@@ -41,6 +42,7 @@ type ManagedRunOptions = {
   autoApprove: boolean;
   logPath: string;
   env?: Record<string, string>;
+  launchedBy: string;
 };
 
 class ManagedRun {
@@ -48,7 +50,7 @@ class ManagedRun {
   private listeners = new Set<(e: RunEvent, idx: number) => void>();
   state: RunState = "running";
   costUsd?: number;
-  pendingPermission?: PendingPermission & { resolve: (b: boolean) => void };
+  pendingPermission?: PendingPermission & { resolve: (d: PermissionDecision) => void };
   private msgQueue: string[] = [];
   private msgWaiter?: (m: string | null) => void;
   private endRequested = false;
@@ -63,9 +65,9 @@ class ManagedRun {
   }
 
   start() {
-    const { id, prompt, ws, model, engineName, env } = this.opts;
+    const { id, prompt, ws, model, engineName, env, launchedBy } = this.opts;
     const adapter = engines[engineName]!;
-    this.emit({ type: "run_started", runId: id, engine: engineName, cwd: ws.cwd, sandbox: "none", model, ts: now() });
+    this.emit({ type: "run_started", runId: id, engine: engineName, cwd: ws.cwd, sandbox: "none", model, launchedBy, ts: now() });
     if (ws.repo && ws.branch) {
       this.emit({ type: "workspace_prepared", repo: ws.repo, branch: ws.branch, path: ws.cwd, ts: now() });
     }
@@ -92,10 +94,10 @@ class ManagedRun {
   private finalize() {
     if (this.finalized) return;
     this.finalized = true;
-    const { ws, id, engineName, prompt } = this.opts;
+    const { ws, id, engineName, prompt, launchedBy } = this.opts;
     if (!ws.repo) return; // 未管理ディレクトリでは親リポジトリを汚さないため何もしない
     try {
-      const c = checkpointCommit(ws.cwd, { runId: id, engine: engineName, prompt });
+      const c = checkpointCommit(ws.cwd, { runId: id, engine: engineName, prompt, launchedBy });
       if (c) this.emit({ type: "checkpoint_committed", sha: c.sha, summary: c.summary, ts: now() });
     } catch (err) {
       // checkpoint 失敗は Run 自体の失敗にはしない
@@ -121,8 +123,8 @@ class ManagedRun {
     for (const l of this.listeners) l(e, idx);
   }
 
-  private requestPermission(tool: string, input: unknown, title?: string): Promise<boolean> {
-    if (this.opts.autoApprove) return Promise.resolve(true);
+  private requestPermission(tool: string, input: unknown, title?: string): Promise<PermissionDecision> {
+    if (this.opts.autoApprove) return Promise.resolve({ allowed: true, by: "auto" });
     return new Promise((res) => {
       const p = this.lastPermission ?? {
         requestId: "req_" + randomUUID().slice(0, 8),
@@ -134,11 +136,11 @@ class ManagedRun {
     });
   }
 
-  decidePermission(requestId: string, allow: boolean): boolean {
+  decidePermission(requestId: string, allow: boolean, by: string): boolean {
     if (!this.pendingPermission || this.pendingPermission.requestId !== requestId) return false;
     const { resolve } = this.pendingPermission;
     this.pendingPermission = undefined;
-    resolve(allow);
+    resolve({ allowed: allow, by });
     return true;
   }
 
@@ -196,6 +198,7 @@ class ManagedRun {
         : undefined,
       repo: ws.repo,
       branch: ws.branch,
+      launchedBy: this.opts.launchedBy,
     };
   }
 }
@@ -219,6 +222,7 @@ export class RunManager {
     model?: string;
     engine?: string;
     autoApprove?: boolean;
+    launchedBy?: string;
   }): RunInfo {
     const engineName = opts.engine ?? "claude";
     if (!engines[engineName]) throw new Error(`unknown engine: ${engineName}`);
@@ -244,6 +248,7 @@ export class RunManager {
       logPath: join(this.logDir, `${id}.jsonl`),
       // Run 内で行われる git 操作はエージェント名義になる（identity の文脈導出）
       env: agentGitEnv(engineName),
+      launchedBy: opts.launchedBy ?? "owner",
     });
     this.runs.set(id, run);
     run.start();

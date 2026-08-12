@@ -34,6 +34,7 @@ export function RunList({
           <span className="truncate text-muted-foreground text-xs">{r.prompt}</span>
           <span className="text-[11px] text-muted-foreground/70">
             {r.engine} · ${(r.costUsd ?? 0).toFixed(4)}
+            {r.launchedBy ? ` · by ${r.launchedBy}` : ""}
             {r.autoApprove ? " · 自動承認" : ""}
           </span>
         </button>

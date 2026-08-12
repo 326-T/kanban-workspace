@@ -85,11 +85,11 @@ export const claudeAdapter: EngineAdapter = {
         permissionMode: "default",
         canUseTool: async (toolName: string, toolInput: Record<string, unknown>, { requestId, title }: any) => {
           io.emit({ type: "permission_request", requestId, tool: toolName, input: toolInput, title, ts: now() });
-          const allowed = await io.requestPermission(toolName, toolInput, title);
-          io.emit({ type: "permission_decision", requestId, allowed, by: "launcher", ts: now() });
-          return allowed
+          const decision = await io.requestPermission(toolName, toolInput, title);
+          io.emit({ type: "permission_decision", requestId, allowed: decision.allowed, by: decision.by, ts: now() });
+          return decision.allowed
             ? { behavior: "allow" as const, updatedInput: toolInput }
-            : { behavior: "deny" as const, message: "起動者が却下しました", interrupt: false };
+            : { behavior: "deny" as const, message: `${decision.by} が却下しました`, interrupt: false };
         },
       },
     });

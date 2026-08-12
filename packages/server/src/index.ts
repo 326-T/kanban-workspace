@@ -5,19 +5,36 @@
 import indexPage from "../web/index.html";
 import { ResourceRegistry } from "./resources";
 import { RunManager } from "./runs";
+import { UserRegistry } from "./users";
 import type { RunEvent } from "@kw/shared";
 
 const PORT = Number(process.env.PORT ?? 4646);
 const registry = new ResourceRegistry(process.cwd());
+const users = new UserRegistry(process.cwd());
 const manager = new RunManager(process.cwd(), registry);
 const enc = new TextEncoder();
 const json = (data: unknown, status = 200) => Response.json(data, { status });
+// D13: 認証なしの申告制。行為者はヘッダで宣言する
+const actingUser = (req: Request) => req.headers.get("x-kw-user")?.trim() || "owner";
 
 Bun.serve({
   port: PORT,
   development: true,
   routes: {
     "/": indexPage as never,
+
+    "/api/users": {
+      GET: () => json(users.list()),
+      POST: async (req: Request) => {
+        const body = (await req.json()) as { name?: string; role?: string };
+        if (!body.name?.trim()) return json({ error: "name required" }, 400);
+        try {
+          return json(users.add(body as { name: string }), 201);
+        } catch (e) {
+          return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+        }
+      },
+    },
 
     "/api/resources": {
       GET: () => json(registry.list()),
@@ -44,7 +61,7 @@ Bun.serve({
         };
         if (!body.prompt?.trim()) return json({ error: "prompt required" }, 400);
         try {
-          return json(manager.create(body as { prompt: string }), 201);
+          return json(manager.create({ ...(body as { prompt: string }), launchedBy: actingUser(req) }), 201);
         } catch (e) {
           return json({ error: e instanceof Error ? e.message : String(e) }, 400);
         }
@@ -106,7 +123,7 @@ Bun.serve({
         const run = manager.get(req.params.id);
         if (!run) return json({ error: "not found" }, 404);
         const { allow } = (await req.json()) as { allow?: boolean };
-        const ok = run.decidePermission(req.params.requestId, allow === true);
+        const ok = run.decidePermission(req.params.requestId, allow === true, actingUser(req));
         return ok ? json(run.info()) : json({ error: "no matching pending permission" }, 409);
       },
     },

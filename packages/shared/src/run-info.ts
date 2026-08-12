@@ -24,6 +24,16 @@ export type RunInfo = {
   // repo リソース上で実行される Run の場合のみ（worktree マウント）
   repo?: string;
   branch?: string;
+  // 起動者（D13: 認証なしの申告制。来歴に記録される）
+  launchedBy?: string;
+};
+
+// ユーザ（D13: PoC は認証なしの登録制 + アカウントスイッチャ）。
+// role は職位ロール（メンバー / 課長 / 部長）。組織木は B6 で拡張する。
+export type User = {
+  name: string;
+  role: string;
+  createdAt: string;
 };
 
 // ワークスペースのリソース（docs/workspace/resources.md）。

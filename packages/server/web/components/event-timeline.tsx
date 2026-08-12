@@ -69,9 +69,9 @@ export function EventTimeline({
   const items = useMemo(() => buildItems(events), [events]);
 
   const decisions = useMemo(() => {
-    const m = new Map<string, boolean>();
+    const m = new Map<string, { allowed: boolean; by: string }>();
     for (const e of events) {
-      if (e.type === "permission_decision") m.set(e.requestId, e.allowed);
+      if (e.type === "permission_decision") m.set(e.requestId, { allowed: e.allowed, by: e.by });
     }
     return m;
   }, [events]);
@@ -122,7 +122,8 @@ export function EventTimeline({
             case "run_started":
               return (
                 <p key={i} className="text-muted-foreground text-xs">
-                  ● run 開始 — engine={e.engine} / cwd={e.cwd} / sandbox={e.sandbox}
+                  ● run 開始 — engine={e.engine}
+                  {e.launchedBy ? ` / by=${e.launchedBy}` : ""} / cwd={e.cwd} / sandbox={e.sandbox}
                 </p>
               );
             case "workspace_prepared":
