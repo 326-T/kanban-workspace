@@ -77,6 +77,9 @@ export const claudeAdapter: EngineAdapter = {
         cwd: spec.cwd,
         model: spec.model,
         systemPrompt: { type: "preset", preset: "claude_code" },
+        // env は「置換」であり継承されないため process.env を明示的に敷く。
+        // spec.env で git identity 等の文脈を注入する
+        env: { ...process.env, ...(spec.env ?? {}) } as Record<string, string>,
         // Run は隔離された実行。実行者ローカルの設定・CLAUDE.md は読み込まない
         settingSources: [],
         permissionMode: "default",
@@ -101,7 +104,7 @@ export const claudeAdapter: EngineAdapter = {
               if (block.type === "text" && block.text?.trim()) {
                 io.emit({ type: "assistant_message", text: block.text, ts: now() });
               } else if (block.type === "tool_use") {
-                io.emit({ type: "tool_request", tool: block.name, input: block.input, ts: now() });
+                io.emit({ type: "tool_request", tool: block.name, input: block.input, callId: block.id, ts: now() });
               }
             }
             break;
@@ -113,6 +116,7 @@ export const claudeAdapter: EngineAdapter = {
                   type: "tool_result",
                   summary: truncate(blockText(block.content).trim(), 200),
                   isError: block.is_error === true,
+                  callId: block.tool_use_id,
                   ts: now(),
                 });
               }

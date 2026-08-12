@@ -21,4 +21,17 @@ export type RunInfo = {
   autoApprove: boolean;
   createdAt: string;
   pendingPermission?: PendingPermission;
+  // repo リソース上で実行される Run の場合のみ（worktree マウント）
+  repo?: string;
+  branch?: string;
+};
+
+// ワークスペースのリソース（docs/workspace/resources.md）。
+// v0 は repo のみ。フラット名前空間 + タグ。
+export type Resource = {
+  name: string;
+  kind: "repo";
+  path: string;
+  tags: string[];
+  createdAt: string;
 };

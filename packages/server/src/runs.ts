@@ -1,5 +1,5 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { claudeAdapter } from "@kw/adapter-claude";
 import {
@@ -10,6 +10,14 @@ import {
   type RunInfo,
   type RunState,
 } from "@kw/shared";
+import { agentGitEnv } from "./git";
+import type { ResourceRegistry } from "./resources";
+import {
+  checkpointCommit,
+  prepareDir,
+  prepareWorktree,
+  type PreparedWorkspace,
+} from "./workspaces";
 
 // Run のサーバ側管理（コントロールプレーン v0）。
 // CLI と同じ AdapterIO を HTTP/SSE に橋渡しする。
@@ -24,6 +32,17 @@ function short(v: unknown, n = 200): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
+type ManagedRunOptions = {
+  id: string;
+  prompt: string;
+  ws: PreparedWorkspace;
+  model?: string;
+  engineName: string;
+  autoApprove: boolean;
+  logPath: string;
+  env?: Record<string, string>;
+};
+
 class ManagedRun {
   readonly events: RunEvent[] = [];
   private listeners = new Set<(e: RunEvent, idx: number) => void>();
@@ -33,25 +52,26 @@ class ManagedRun {
   private msgQueue: string[] = [];
   private msgWaiter?: (m: string | null) => void;
   private endRequested = false;
+  private finalized = false;
   private lastPermission?: PendingPermission;
   readonly createdAt = now();
 
-  constructor(
-    readonly id: string,
-    readonly prompt: string,
-    readonly cwd: string,
-    readonly model: string | undefined,
-    readonly engineName: string,
-    readonly autoApprove: boolean,
-    private logPath: string,
-  ) {}
+  constructor(private opts: ManagedRunOptions) {}
+
+  get id() {
+    return this.opts.id;
+  }
 
   start() {
-    const adapter = engines[this.engineName]!;
-    this.emit({ type: "run_started", runId: this.id, engine: this.engineName, cwd: this.cwd, sandbox: "none", model: this.model, ts: now() });
+    const { id, prompt, ws, model, engineName, env } = this.opts;
+    const adapter = engines[engineName]!;
+    this.emit({ type: "run_started", runId: id, engine: engineName, cwd: ws.cwd, sandbox: "none", model, ts: now() });
+    if (ws.repo && ws.branch) {
+      this.emit({ type: "workspace_prepared", repo: ws.repo, branch: ws.branch, path: ws.cwd, ts: now() });
+    }
     adapter
       .launch(
-        { runId: this.id, cwd: this.cwd, prompt: this.prompt, model: this.model },
+        { runId: id, cwd: ws.cwd, prompt, model, env },
         {
           emit: (e) => this.emit(e),
           requestPermission: (tool, input, title) => this.requestPermission(tool, input, title),
@@ -59,11 +79,28 @@ class ManagedRun {
         },
       )
       .then(() => {
+        this.finalize();
         if (this.state === "running" || this.state === "waiting_input") this.state = "completed";
       })
       .catch((err) => {
         this.emit({ type: "failed", error: err instanceof Error ? err.message : String(err), ts: now() });
+        this.finalize();
       });
+  }
+
+  // Run 終了時の後始末。repo 管理下なら未コミット変更を checkpoint として保全する
+  private finalize() {
+    if (this.finalized) return;
+    this.finalized = true;
+    const { ws, id, engineName, prompt } = this.opts;
+    if (!ws.repo) return; // 未管理ディレクトリでは親リポジトリを汚さないため何もしない
+    try {
+      const c = checkpointCommit(ws.cwd, { runId: id, engine: engineName, prompt });
+      if (c) this.emit({ type: "checkpoint_committed", sha: c.sha, summary: c.summary, ts: now() });
+    } catch (err) {
+      // checkpoint 失敗は Run 自体の失敗にはしない
+      console.error(`[${id}] checkpoint commit failed:`, err);
+    }
   }
 
   private emit(e: RunEvent) {
@@ -80,12 +117,12 @@ class ManagedRun {
     if (e.type === "failed") this.state = "failed";
     const idx = this.events.length;
     this.events.push(e);
-    appendFileSync(this.logPath, JSON.stringify(e) + "\n");
+    appendFileSync(this.opts.logPath, JSON.stringify(e) + "\n");
     for (const l of this.listeners) l(e, idx);
   }
 
   private requestPermission(tool: string, input: unknown, title?: string): Promise<boolean> {
-    if (this.autoApprove) return Promise.resolve(true);
+    if (this.opts.autoApprove) return Promise.resolve(true);
     return new Promise((res) => {
       const p = this.lastPermission ?? {
         requestId: "req_" + randomUUID().slice(0, 8),
@@ -143,17 +180,22 @@ class ManagedRun {
 
   info(): RunInfo {
     const pp = this.pendingPermission;
+    const { id, prompt, ws, model, engineName, autoApprove } = this.opts;
     return {
-      id: this.id,
-      prompt: this.prompt,
-      cwd: this.cwd,
-      model: this.model,
-      engine: this.engineName,
+      id,
+      prompt,
+      cwd: ws.cwd,
+      model,
+      engine: engineName,
       state: this.state,
       costUsd: this.costUsd,
-      autoApprove: this.autoApprove,
+      autoApprove,
       createdAt: this.createdAt,
-      pendingPermission: pp ? { requestId: pp.requestId, tool: pp.tool, title: pp.title, inputPreview: pp.inputPreview } : undefined,
+      pendingPermission: pp
+        ? { requestId: pp.requestId, tool: pp.tool, title: pp.title, inputPreview: pp.inputPreview }
+        : undefined,
+      repo: ws.repo,
+      branch: ws.branch,
     };
   }
 }
@@ -162,18 +204,47 @@ export class RunManager {
   private runs = new Map<string, ManagedRun>();
   private logDir: string;
 
-  constructor(baseDir: string) {
+  constructor(
+    private baseDir: string,
+    private registry: ResourceRegistry,
+  ) {
     this.logDir = join(baseDir, ".kw", "runs");
     mkdirSync(this.logDir, { recursive: true });
   }
 
-  create(opts: { prompt: string; dir?: string; model?: string; engine?: string; autoApprove?: boolean }): RunInfo {
+  create(opts: {
+    prompt: string;
+    repo?: string;
+    dir?: string;
+    model?: string;
+    engine?: string;
+    autoApprove?: boolean;
+  }): RunInfo {
     const engineName = opts.engine ?? "claude";
     if (!engines[engineName]) throw new Error(`unknown engine: ${engineName}`);
     const id = "r_" + randomUUID().slice(0, 8);
-    const cwd = resolve(opts.dir?.trim() || "playground");
-    mkdirSync(cwd, { recursive: true });
-    const run = new ManagedRun(id, opts.prompt, cwd, opts.model, engineName, opts.autoApprove ?? false, join(this.logDir, `${id}.jsonl`));
+
+    // マウントテーブル v0: repo 指定なら run ブランチの worktree、なければ未管理ディレクトリ
+    let ws: PreparedWorkspace;
+    if (opts.repo) {
+      const res = this.registry.get(opts.repo);
+      if (!res) throw new Error(`unknown repo resource: ${opts.repo}`);
+      ws = prepareWorktree(this.baseDir, id, res);
+    } else {
+      ws = prepareDir(opts.dir);
+    }
+
+    const run = new ManagedRun({
+      id,
+      prompt: opts.prompt,
+      ws,
+      model: opts.model,
+      engineName,
+      autoApprove: opts.autoApprove ?? false,
+      logPath: join(this.logDir, `${id}.jsonl`),
+      // Run 内で行われる git 操作はエージェント名義になる（identity の文脈導出）
+      env: agentGitEnv(engineName),
+    });
     this.runs.set(id, run);
     run.start();
     return run.info();

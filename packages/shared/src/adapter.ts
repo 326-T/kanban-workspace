@@ -5,6 +5,8 @@ export type RunSpec = {
   cwd: string;
   prompt: string;
   model?: string;
+  // Run プロセスに注入する追加環境変数（git identity の文脈導出などに使う）
+  env?: Record<string, string>;
 };
 
 export type AdapterIO = {

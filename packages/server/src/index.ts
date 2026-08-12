@@ -3,11 +3,13 @@
 // UI は API の純粋なクライアント（D10）。CLI と同じ RunEvent を流す。
 
 import indexPage from "../web/index.html";
+import { ResourceRegistry } from "./resources";
 import { RunManager } from "./runs";
 import type { RunEvent } from "@kw/shared";
 
 const PORT = Number(process.env.PORT ?? 4646);
-const manager = new RunManager(process.cwd());
+const registry = new ResourceRegistry(process.cwd());
+const manager = new RunManager(process.cwd(), registry);
 const enc = new TextEncoder();
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 
@@ -17,15 +19,34 @@ Bun.serve({
   routes: {
     "/": indexPage as never,
 
+    "/api/resources": {
+      GET: () => json(registry.list()),
+      POST: async (req: Request) => {
+        const body = (await req.json()) as { name?: string; path?: string; tags?: string[] };
+        if (!body.name?.trim() || !body.path?.trim()) return json({ error: "name and path required" }, 400);
+        try {
+          return json(registry.add(body as { name: string; path: string }), 201);
+        } catch (e) {
+          return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+        }
+      },
+    },
+
     "/api/runs": {
       GET: () => json(manager.list()),
       POST: async (req: Request) => {
-        const body = (await req.json()) as { prompt?: string; dir?: string; model?: string; autoApprove?: boolean };
+        const body = (await req.json()) as {
+          prompt?: string;
+          repo?: string;
+          dir?: string;
+          model?: string;
+          autoApprove?: boolean;
+        };
         if (!body.prompt?.trim()) return json({ error: "prompt required" }, 400);
         try {
           return json(manager.create(body as { prompt: string }), 201);
         } catch (e) {
-          return json({ error: String(e) }, 400);
+          return json({ error: e instanceof Error ? e.message : String(e) }, 400);
         }
       },
     },

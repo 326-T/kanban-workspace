@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TriangleAlertIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { useRuns } from "@/hooks/use-runs";
 import { useRunEvents } from "@/hooks/use-run-events";
@@ -39,6 +40,11 @@ export function App() {
             <div className="flex items-center gap-3">
               <span className="font-mono text-sm">{run.id}</span>
               <RunStateBadge state={run.state} />
+              {run.branch && (
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {run.repo} ⎇ {run.branch}
+                </Badge>
+              )}
               <span className="text-muted-foreground text-xs">
                 ${(run.costUsd ?? 0).toFixed(4)}
               </span>

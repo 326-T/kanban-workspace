@@ -25,24 +25,28 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 type ToolRequestEvent = Extract<RunEvent, { type: "tool_request" }>;
 type ToolResultEvent = Extract<RunEvent, { type: "tool_result" }>;
 
-// tool_request と直後の tool_result を 1 つの Tool 表示に束ねる。
-// （RunEvent v0 には相関 ID がないため、エンジンの逐次実行性を前提に隣接ペアリング）
+// tool_request と対応する tool_result を 1 つの Tool 表示に束ねる。
+// callId（エンジンの tool_use id）で相関し、無い古いイベントは隣接ペアリングにフォールバック。
 type Item =
   | { kind: "event"; event: RunEvent }
   | { kind: "tool"; request: ToolRequestEvent; result?: ToolResultEvent };
 
 function buildItems(events: RunEvent[]): Item[] {
   const items: Item[] = [];
-  let openTool: Extract<Item, { kind: "tool" }> | null = null;
+  const openById = new Map<string, Extract<Item, { kind: "tool" }>>();
+  const openStack: Extract<Item, { kind: "tool" }>[] = [];
 
   for (const e of events) {
     if (e.type === "tool_request") {
-      openTool = { kind: "tool", request: e };
-      items.push(openTool);
+      const tool: Extract<Item, { kind: "tool" }> = { kind: "tool", request: e };
+      items.push(tool);
+      if (e.callId) openById.set(e.callId, tool);
+      else openStack.push(tool);
     } else if (e.type === "tool_result") {
-      if (openTool && !openTool.result) {
-        openTool.result = e;
-        openTool = null;
+      const target = e.callId ? openById.get(e.callId) : openStack.find((t) => !t.result);
+      if (target && !target.result) {
+        target.result = e;
+        if (e.callId) openById.delete(e.callId);
       } else {
         items.push({ kind: "event", event: e });
       }
@@ -119,6 +123,18 @@ export function EventTimeline({
               return (
                 <p key={i} className="text-muted-foreground text-xs">
                   ● run 開始 — engine={e.engine} / cwd={e.cwd} / sandbox={e.sandbox}
+                </p>
+              );
+            case "workspace_prepared":
+              return (
+                <p key={i} className="text-muted-foreground text-xs">
+                  ⎇ workspace — repo={e.repo} / branch={e.branch} → {e.path}
+                </p>
+              );
+            case "checkpoint_committed":
+              return (
+                <p key={i} className="font-mono text-muted-foreground text-xs">
+                  ✦ checkpoint {e.sha.slice(0, 7)}（{e.summary}, agent 名義 + Run trailer）
                 </p>
               );
             case "assistant_message":

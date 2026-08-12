@@ -21,6 +21,8 @@
 
 **含まないもの**：Web UI・ボード・MCP ゲートウェイ・組織木 / 承認ルーティング（承認は起動者本人のみ）・hooks・Codex・shared-volume・ローカル LLM
 
+**進捗（2026-08-12）**：Control plane（Run API + SSE）・Claude アダプタ・CLI・リソース登録 + worktree マウント + checkpoint コミット（agent 名義 + Run trailer）・Web UI（API の投影として前倒しで実装、shadcn/ui + AI Elements）まで動作確認済み。残り：クレデンシャルプロキシ v0・bwrap バックエンド（Linux 実機待ち）・CLI の repo 対応・`kw usage`
+
 Exit criteria（このデモが通ること）：
 
 ```
