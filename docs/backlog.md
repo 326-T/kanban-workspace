@@ -54,16 +54,17 @@ PoC はシングルテナントで VM 内認証は過剰なため実装しない
 
 ## B6. [M1] 権限モデルと承認ルーティング 3 種
 
-**背景**：本企画の差別化の核。現状の承認は起動者本人のみ・リソースは登録制のみで ACL が無い。前提：B9 のユーザ登録簿（実装済み）。
+**背景**：本企画の差別化の核。現状の承認は起動者本人のみ・リソースは登録制のみで ACL が無い。前提：B9 のユーザ登録簿（実装済み）。**方式は D14 の権限コンパイラ**：解決済み ACL をエンジンネイティブ設定（Claude Code permissions の allow/deny/ask）にコンパイルして注入し、ask だけが承認ルーティングに落ちる。
 
 - [ ] 主体（User / Agent）と組織木・職位ロールのモデル実装（B9 のユーザ登録簿を拡張）
 - [ ] ACL：リソース語彙（`repo:<name>` + glob、タグセレクタ）× 主体
 - [ ] `Run 権限 = Template ∩ 起動者 ∩ カードスコープ` の解決器
-- [ ] 承認ルーティング：権限内=自動 / 起動者権限内=本人 / 超過=最小の祖先へエスカレーション
+- [ ] **権限コンパイラ**：解決済み権限 → Claude Code permissions（SDK `settings` オプションで注入。MCP は `mcp__*` ルール）
+- [ ] 承認ルーティング：ask 発火時に、起動者権限内=本人 / 超過=組織木で最小の祖先へエスカレーション
 - [ ] 起動時事前承認・成果物レビュー関門（Run ブランチのマージ承認として）
 - [ ] タグ付与を権限操作として扱う（承認・監査対象）
 
-参照：[permission/model.md](permission/model.md)、[permission/approval.md](permission/approval.md)、D7 / D8
+参照：[permission/model.md](permission/model.md)、[permission/approval.md](permission/approval.md)、D7 / D8 / D14
 
 ## B7. [M1] MCP ゲートウェイ v0
 
