@@ -60,7 +60,7 @@ PoC はシングルテナントで VM 内認証は過剰なため実装しない
 - [ ] 主体（User / Agent）と組織木・職位ロールのモデル実装（B9 のユーザ登録簿を拡張）
 - [ ] ACL：リソース語彙（`repo:<name>` + glob、タグセレクタ）× 主体
 - [ ] `Run 権限 = Template ∩ 起動者 ∩ カードスコープ` の解決器
-- [ ] **権限コンパイラ**：解決済み権限 → Claude Code permissions（SDK `settings` オプションで注入。MCP は `mcp__*` ルール）
+- [ ] **権限コンパイラ**：解決済み権限 → Claude Code permissions。注入は SDK オプションで、**allow/ask → `settings`（インライン）、組織の下限 deny → `managedSettings`（restrictive-only 層で下位から覆せない）**。MCP は `mcp__*` ルール。`settingSources` は `[]` を維持（worktree の settings.json はエージェント可書のため読ませない = 自己昇格の防止。CLAUDE.md/AGENTS.md が必要ならアダプタが読んで systemPrompt.append で注入）
 - [ ] 承認ルーティング：ask 発火時に、起動者権限内=本人 / 超過=組織木で最小の祖先へエスカレーション
 - [ ] 起動時事前承認・成果物レビュー関門（Run ブランチのマージ承認として）
 - [ ] タグ付与を権限操作として扱う（承認・監査対象）
