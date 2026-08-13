@@ -1,0 +1,8 @@
+.git
+**/node_modules
+core/build
+core/.gradle
+packages/web/dist
+.kw
+playground
+*.log

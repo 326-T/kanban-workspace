@@ -57,8 +57,38 @@ packages/cli/            kw CLI（現在はスタンドアロン実行。core AP
 
 ## 起動方法
 
+### docker compose（推奨）
+
+`cp env.example .env` してモデル認証を設定してから：
+
 ```bash
-docker compose up -d --wait
+docker compose up -d --build --wait
+```
+
+http://localhost:4646 が UI（postgres / engine / core の 3 サービス）。
+
+リポジトリは **ホストと同じ絶対パス**（`${PWD}:${PWD}`）でマウントしているため、worktree や checkpoint コミットはホスト側の `git` からもそのまま追える。
+
+**モデル認証について**：D13 のとおりクレデンシャルプロキシを持たないため、実行者の認証をそのまま使う。`.env` に `CLAUDE_CODE_OAUTH_TOKEN`（ホストで `claude setup-token` を実行して発行）または `ANTHROPIC_API_KEY` を置く。
+
+macOS の Claude Code は認証情報を Keychain に持つためコンテナから読めない。トークンを用意しない場合は engine だけホストで動かす：
+
+```bash
+docker compose stop engine
+```
+
+```bash
+bun run engine
+```
+
+```bash
+KW_ENGINE_URL=http://host.docker.internal:4647 docker compose up -d --no-deps core
+```
+
+### ローカル実行（開発時）
+
+```bash
+docker compose up -d --wait postgres
 ```
 
 ```bash
@@ -77,7 +107,7 @@ bun run engine
 cd core && gradle run
 ```
 
-http://localhost:4646 が UI。Web UI を触りながら開発するときは `bun run web:dev`（:5173 から core へプロキシ）。
+UI を触りながら開発するときは `bun run web:dev`（:5173 から core へプロキシ）。
 
 ## ステータス
 

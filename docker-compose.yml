@@ -1,4 +1,10 @@
-# kw-core の Postgres（D16）。ローカル完結で 1 組織 = 1 VM 相当の構成を再現する。
+# kw の一式（D16）。1 組織 = 1 VM 相当の構成をローカルで再現する。
+#
+#   docker compose up -d --build --wait   # 全部起動
+#   open http://localhost:4646
+#
+# ホストとコンテナで **同じ絶対パス** になるようリポジトリを ${PWD}:${PWD} でマウントしている。
+# worktree の gitdir は絶対パスを記録するため、これでホスト側の git からも同じ Run を追える。
 services:
   postgres:
     image: postgres:18-alpine
@@ -18,5 +24,71 @@ services:
       timeout: 3s
       retries: 20
 
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    container_name: kw-engine
+    working_dir: /app
+    environment:
+      KW_ENGINE_PORT: 4647
+      # モデル認証（D13: PoC はプロキシを持たず実行者の認証を素通しする）。
+      # どちらかを .env に置く。CLAUDE_CODE_OAUTH_TOKEN は `claude setup-token` で発行できる
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ホスト所有のリポジトリを触るため所有者チェックを緩める
+      GIT_CONFIG_COUNT: 1
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "*"
+    volumes:
+      # worktree / リポジトリへのアクセス。パスはホストと一致させる
+      - ${PWD}:${PWD}
+      # CLI のセッション・キャッシュ（認証情報がファイルで置かれる Linux ホストでは
+      # 代わりに ${HOME}/.claude をマウントしてもよい）
+      - kw-claude:/home/bun/.claude
+    ports:
+      - "4647:4647"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:4647/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile.core
+    container_name: kw-core
+    working_dir: ${PWD}
+    environment:
+      KW_PORT: 4646
+      KW_DB_URL: jdbc:postgresql://postgres:5432/kw
+      KW_DB_USER: kw
+      KW_DB_PASSWORD: kw
+      KW_ENGINE_URL: ${KW_ENGINE_URL:-http://engine:4647}
+      KW_WORK_DIR: ${PWD}/.kw
+      KW_DEFAULT_DIR: ${PWD}/playground
+      GIT_CONFIG_COUNT: 1
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "*"
+    volumes:
+      - ${PWD}:${PWD}
+    ports:
+      - "4646:4646"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+    extra_hosts:
+      # engine をホストで動かす構成（macOS の Keychain 認証を使う場合）への逃げ道
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:4646/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
 volumes:
   kw-pgdata:
+  kw-claude:

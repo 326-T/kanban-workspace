@@ -4,8 +4,8 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "engine": "bun packages/engine/src/index.ts",
-    "web:dev": "bun --cwd packages/web run dev",
-    "web:build": "bun --cwd packages/web run build"
+    "web:dev": "bun run --filter @kw/web dev",
+    "web:build": "bun run --filter @kw/web build"
   },
   "devDependencies": {
     "bun-plugin-tailwind": "^0.1.2",

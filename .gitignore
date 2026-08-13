@@ -2,6 +2,7 @@ node_modules/
 playground/
 .kw/
 dist/
+.env
 
 # Kotlin / Gradle
 .gradle/
