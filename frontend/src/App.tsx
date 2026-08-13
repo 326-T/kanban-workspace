@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { TriangleAlertIcon } from "lucide-react";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { GitCompareIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { AccountSwitcher } from "@/components/account-switcher";
 import { api } from "@/lib/api";
+
+// diff ビューア（シンタックスハイライト込み）は重いので、レビュータブを開いた時だけ読む
+const ReviewPanel = lazy(() => import("@/components/review-panel"));
 import { useRuns } from "@/hooks/use-runs";
 import { useRunEvents } from "@/hooks/use-run-events";
 import { Composer } from "@/components/composer";
@@ -18,6 +22,14 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const events = useRunEvents(selectedId);
   const run = runs.find((r) => r.id === selectedId);
+  const [tab, setTab] = useState<"timeline" | "review">("timeline");
+
+  // repo 上で完了した Run だけがレビュー対象（成果物レビュー関門、D4）
+  const reviewable = run?.state === "completed" && !!run.repo;
+
+  useEffect(() => {
+    setTab("timeline");
+  }, [selectedId]);
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -50,6 +62,35 @@ export function App() {
               <span className="text-muted-foreground text-xs">
                 ${(run.costUsd ?? 0).toFixed(4)}
               </span>
+              {run.reviewState && (
+                <Badge
+                  className={
+                    run.reviewState === "approved"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-amber-500 text-black"
+                  }
+                >
+                  {run.reviewState === "approved" ? "マージ済み" : "差し戻し"}
+                </Badge>
+              )}
+              {reviewable && (
+                <span className="ml-2 flex gap-1">
+                  <Button
+                    size="xs"
+                    variant={tab === "timeline" ? "secondary" : "ghost"}
+                    onClick={() => setTab("timeline")}
+                  >
+                    タイムライン
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant={tab === "review" ? "secondary" : "ghost"}
+                    onClick={() => setTab("review")}
+                  >
+                    <GitCompareIcon /> 差分レビュー
+                  </Button>
+                </span>
+              )}
             </div>
           ) : (
             <span className="text-muted-foreground text-sm">Run 未選択</span>
@@ -60,7 +101,17 @@ export function App() {
           </span>
         </div>
 
-        {run ? (
+        {run && reviewable && tab === "review" ? (
+          <Suspense
+            fallback={
+              <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
+                差分ビューを読み込み中…
+              </div>
+            }
+          >
+            <ReviewPanel run={run} onReviewed={refresh} />
+          </Suspense>
+        ) : run ? (
           <>
             <EventTimeline
               events={events}

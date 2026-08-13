@@ -42,6 +42,8 @@ MVP で 3 種すべてを実装する（決定 D4）。いずれも「承認待�
 - 承認 → Done
 - 差し戻し → コメント付きで InProgress に戻り、同一カードに新しい Run を起動できる（前 Run の成果物とコメントがコンテキストとして引き継がれる）
 
+**実装（B12、2026-08-13）**：レビュー対象は `base...run/<runId>` の差分。承認すると `git merge --no-ff` でベースへマージし、worktree を撤去する。**マージコミットの author は承認した人間**で、`Run:` と `Approved-by:` の trailer が付く（[../workspace/identity.md](../workspace/identity.md)）。差し戻しは記録のみでブランチを残す。裁定は `review_approved` / `review_rejected` イベントとしてログに残る。
+
 ボード構造（列の遷移制約）だけで強制できるため実装が軽く、hooks（[hooks.md](../orchestration/hooks.md)）の「完了 → 上長に報告」パターンの受け皿にもなる。
 
 ## 通知

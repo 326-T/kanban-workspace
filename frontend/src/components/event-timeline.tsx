@@ -138,6 +138,27 @@ export function EventTimeline({
                   ✦ checkpoint {e.sha.slice(0, 7)}（{e.summary}, agent 名義 + Run trailer）
                 </p>
               );
+            case "review_approved":
+              return (
+                <Alert key={i} className="max-w-3xl border-emerald-500/50 bg-emerald-500/5">
+                  <CheckCircleIcon className="text-emerald-500" />
+                  <AlertTitle>レビュー承認 — {e.base} へマージ</AlertTitle>
+                  <AlertDescription>
+                    <span className="font-mono text-xs">{e.mergeSha.slice(0, 7)}</span>（承認: {e.by}）
+                    {e.comment ? <span className="whitespace-pre-wrap">{e.comment}</span> : null}
+                  </AlertDescription>
+                </Alert>
+              );
+            case "review_rejected":
+              return (
+                <Alert key={i} className="max-w-3xl border-amber-500/50 bg-amber-500/5">
+                  <XCircleIcon className="text-amber-500" />
+                  <AlertTitle>差し戻し（{e.by}）</AlertTitle>
+                  <AlertDescription>
+                    {e.comment ? <span className="whitespace-pre-wrap">{e.comment}</span> : "理由の記載なし"}
+                  </AlertDescription>
+                </Alert>
+              );
             case "assistant_message":
               return (
                 <Message key={i} from="assistant">

@@ -2,7 +2,7 @@
 
 これからやることの起票場所。GitHub Issues は使わず、このファイルで管理する（起票・クローズはコミットとして履歴に残る）。着手時はエントリ先頭に `→ WIP`、完了時は `✅ 完了 (コミット)` を付ける。
 
-**優先方針（2026-08-13 更新）**：D16 の 2 サービス分割（B10 / B11）は完了。次は**ハッピーパス** — 複数ユーザが repo 上でエージェントを起動し、承認・レビューを回して成果物がマージされるまでの一連 — を通す。順序の目安：**B6（権限・承認）→ B4（usage）→ B3（CLI）**。B2（コンテナ隔離）と B5（Codex）は優先度低。
+**優先方針（2026-08-13 更新）**：D16 の 2 サービス分割（B10 / B11）と成果物レビュー関門（B12）は完了し、**ハッピーパスは一周した**（起動 → 承認 → 対話 → 完了 → diff レビュー → マージ）。次の順序：**B6（権限・承認ルーティング）→ B4（usage）→ B3（CLI）**。B2（コンテナ隔離）と B5（Codex）は優先度低。
 
 ---
 
@@ -102,6 +102,20 @@ D16 により kw-core（Ktor + jOOQ）の初期実装そのものになったた
 - [x] 起動時再水和（**O14 解消**）：イベントログから派生状態を復元し、engine 上に Run が生きていれば engine seq から購読を再開、失われていれば failed で閉じる
 
 残课題（B6 などで拾う）：承認 API のレスポンスは engine の `permission_decision` 到着前のスナップショットを返すため `pendingPermission` が一瞬古い（UI は SSE で判定するため実害なし）
+
+## B12. ✅ 完了 — 成果物レビュー関門（D4 の 3 番目の承認）
+
+**背景**：Run が `run/<id>` ブランチに checkpoint を残して終わるだけで、成果物を見て・承認して・本流に入れる手段が無く、孤児ブランチが溜まっていた。
+
+- [x] `GET /api/runs/{id}/diff`：`base...branch`（三点）の差分をファイル単位で返す（path / status / +- 行数 / hunks）
+- [x] `POST /api/runs/{id}/review` `{approve, comment}`：承認 → `git merge --no-ff` でベースへマージ + worktree 撤去、差し戻し → 記録のみ（ブランチは残す）
+- [x] マージコミットの名義は**承認した人間**（D5: author = 実行主体）＋ `Run:` / `Approved-by:` trailer
+- [x] `review_approved` / `review_rejected` イベントと `kw_runs.review_state`。二重レビューは 400 で弾く
+- [x] UI：完了 + repo の Run に「差分レビュー」タブ。[@git-diff-view/react](https://github.com/MrWangJustToDo/git-diff-view) で GitHub 風表示（重いので lazy import でメインバンドルから分離）
+
+これで来歴が一周する：**エージェントが書く（agent 名義）→ 誰の委任か（Launched-by）→ 誰が承認してマージしたか（Approved-by）**。
+
+未対応：マージコンフリクト時は git のエラーがそのまま 400 で返る（解消フローは未実装）。差し戻し後の「同じカードで再 Run」はカード概念が入ってから
 
 ## B9. ✅ 完了 — ユーザスイッチャ（認証なしのアカウント切替、D13）
 

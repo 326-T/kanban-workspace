@@ -30,6 +30,9 @@ create table if not exists kw_runs (
   created_at   timestamp with time zone not null default now()
 );
 
+-- 成果物レビュー関門（D4）の結果。null = 未レビュー
+alter table kw_runs add column if not exists review_state varchar(16);
+
 -- append-only。seq は Run ごとの連番で、UI への SSE の Last-Event-ID になる
 create table if not exists kw_run_events (
   run_id      varchar(32)  not null,

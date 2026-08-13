@@ -42,6 +42,7 @@ object Runs {
     val REPO = DSL.field(DSL.name("repo"), SQLDataType.VARCHAR)
     val BRANCH = DSL.field(DSL.name("branch"), SQLDataType.VARCHAR)
     val LAUNCHED_BY = DSL.field(DSL.name("launched_by"), SQLDataType.VARCHAR)
+    val REVIEW_STATE = DSL.field(DSL.name("review_state"), SQLDataType.VARCHAR)
     val CREATED_AT = DSL.field(DSL.name("created_at"), SQLDataType.OFFSETDATETIME)
 }
 

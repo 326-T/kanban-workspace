@@ -78,4 +78,77 @@ object Git {
         val sha = exec(listOf("-C", cwd, "rev-parse", "HEAD")).trim()
         return Checkpoint(sha, "${status.lines().size} file(s)")
     }
+
+    // ---- 成果物レビュー関門 ---------------------------------------------
+
+    /** レビュー対象のベースブランチ（リポジトリ本体が指している既定ブランチ） */
+    fun baseBranch(repoPath: String): String =
+        runCatching { exec(listOf("-C", repoPath, "symbolic-ref", "--short", "HEAD")).trim() }
+            .getOrDefault("main")
+
+    data class DiffFile(
+        val path: String,
+        val status: String,
+        val additions: Int,
+        val deletions: Int,
+        val hunks: String,
+    )
+
+    data class Diff(val base: String, val branch: String, val files: List<DiffFile>)
+
+    /**
+     * base...branch（三点）の diff。マージベースからの差分になるので、
+     * base が先に進んでいてもレビュー対象は「この Run が加えた変更」だけになる。
+     * UI 側の diff コンポーネントに合わせてファイル単位で返す。
+     */
+    fun diff(repoPath: String, branch: String): Diff {
+        val base = baseBranch(repoPath)
+        val range = "$base...$branch"
+
+        val statusByPath = exec(listOf("-C", repoPath, "diff", "--name-status", "--no-color", range))
+            .lineSequence().filter { it.isNotBlank() }
+            .associate { line -> line.split("\t").let { it.last() to it.first() } }
+
+        val files = exec(listOf("-C", repoPath, "diff", "--numstat", "--no-color", range))
+            .lineSequence().filter { it.isNotBlank() }
+            .map { line ->
+                val parts = line.split("\t")
+                val path = parts.last()
+                DiffFile(
+                    path = path,
+                    status = statusByPath[path] ?: "M",
+                    additions = parts.getOrNull(0)?.toIntOrNull() ?: 0,
+                    deletions = parts.getOrNull(1)?.toIntOrNull() ?: 0,
+                    hunks = exec(listOf("-C", repoPath, "diff", "--no-color", range, "--", path)),
+                )
+            }
+            .toList()
+
+        return Diff(base, branch, files)
+    }
+
+    /**
+     * レビュー承認 = base へのマージ。
+     * マージコミットの author/committer は**承認した人間**（D5: author = 実行主体）で、
+     * trailer に Run と承認者を残す。
+     */
+    fun mergeForReview(repoPath: String, branch: String, runId: String, approver: String): String {
+        val base = baseBranch(repoPath)
+        val message = """
+            merge: $branch
+
+            Run: $runId
+            Approved-by: $approver
+        """.trimIndent()
+        exec(
+            listOf("-C", repoPath, "merge", "--no-ff", "-m", message, branch),
+            identity(approver, "$approver@users.kw.local"),
+        )
+        return exec(listOf("-C", repoPath, "rev-parse", "HEAD")).trim()
+    }
+
+    /** マージ済みの worktree を片付ける（ブランチは履歴として残す） */
+    fun removeWorktree(repoPath: String, worktreePath: String) {
+        runCatching { exec(listOf("-C", repoPath, "worktree", "remove", "--force", worktreePath)) }
+    }
 }

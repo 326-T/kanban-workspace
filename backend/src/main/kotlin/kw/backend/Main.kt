@@ -102,6 +102,17 @@ fun Application.module(cfg: Config, users: UserRepo, resources: ResourceRepo, se
                 if (!ok) call.respond(HttpStatusCode.Conflict, ErrorResponse("no matching pending permission"))
                 else call.respond(service.info(id) ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("not found")))
             }
+            get("/runs/{id}/diff") {
+                val d = service.diff(call.parameters["id"].orEmpty())
+                if (d == null) call.respond(HttpStatusCode.NotFound, ErrorResponse("diff がありません（repo リソース上の Run のみ）"))
+                else call.respond(d)
+            }
+            post("/runs/{id}/review") {
+                val req = call.receive<ReviewRequest>()
+                val info = service.review(call.parameters["id"].orEmpty(), req.approve, req.comment, call.actingUser())
+                if (info == null) call.respond(HttpStatusCode.NotFound, ErrorResponse("not found"))
+                else call.respond(info)
+            }
             post("/runs/{id}/end") {
                 val info = service.end(call.parameters["id"].orEmpty())
                 if (info == null) call.respond(HttpStatusCode.NotFound, ErrorResponse("not found"))

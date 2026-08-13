@@ -205,22 +205,27 @@ class RunService(
 
     private suspend fun onEngineEvent(rt: Runtime, engineSeq: Int, payload: JsonObject) {
         rt.lastEngineSeq = engineSeq
-        append(rt, payload, engineSeq)
+        append(rt.row.id, payload, engineSeq)
     }
 
-    private suspend fun emitCore(rt: Runtime, payload: JsonObject) = append(rt, payload, null)
+    private suspend fun emitCore(rt: Runtime, payload: JsonObject) = append(rt.row.id, payload, null)
 
-    /** 永続化 → 派生状態の更新 → UI への再投影、の一本道 */
-    private suspend fun append(rt: Runtime, payload: JsonObject, engineSeq: Int?) {
+    /**
+     * 永続化 → 派生状態の更新 → UI への再投影、の一本道。
+     * 終了済み Run（Runtime を持たない）にも追記できるようにしてある（レビュー結果など）。
+     */
+    private suspend fun append(runId: String, payload: JsonObject, engineSeq: Int?) {
         val type = JsonCodec.str(payload, "type") ?: "unknown"
         val encoded = JsonCodec.encode(payload)
-        val stored = withContext(Dispatchers.IO) { runs.append(rt.row.id, type, encoded, engineSeq) }
-        val before = rt.state to rt.costUsd
-        applyEvent(rt, type, payload)
-        bus.publish(rt.row.id, stored)
-        if (before != (rt.state to rt.costUsd)) {
-            withContext(Dispatchers.IO) { runs.updateState(rt.row.id, rt.state, rt.costUsd) }
+        val stored = withContext(Dispatchers.IO) { runs.append(runId, type, encoded, engineSeq) }
+        runtimes[runId]?.let { rt ->
+            val before = rt.state to rt.costUsd
+            applyEvent(rt, type, payload)
+            if (before != (rt.state to rt.costUsd)) {
+                withContext(Dispatchers.IO) { runs.updateState(runId, rt.state, rt.costUsd) }
+            }
         }
+        bus.publish(runId, stored)
     }
 
     private fun applyEvent(rt: Runtime, type: String, p: JsonObject) {
@@ -277,5 +282,62 @@ class RunService(
         id = row.id, prompt = row.prompt, cwd = row.cwd, engine = row.engine, model = row.model,
         state = state, costUsd = cost, autoApprove = row.autoApprove, createdAt = row.createdAt,
         pendingPermission = pending, repo = row.repo, branch = row.branch, launchedBy = row.launchedBy,
+        reviewState = row.reviewState,
     )
+
+    // ---- 成果物レビュー関門（D4） ---------------------------------------
+
+    /** run ブランチの差分（base...branch）。レビュー対象はこの Run が加えた変更だけ */
+    suspend fun diff(id: String): DiffResponse? {
+        val row = runs.get(id) ?: return null
+        val repoName = row.repo ?: return null
+        val branch = row.branch ?: return null
+        val resource = resources.get(repoName) ?: error("unknown repo resource: $repoName")
+        val d = withContext(Dispatchers.IO) { Git.diff(resource.path, branch) }
+        return DiffResponse(
+            base = d.base,
+            branch = d.branch,
+            files = d.files.map { DiffFileEntry(it.path, it.status, it.additions, it.deletions, it.hunks) },
+        )
+    }
+
+    /**
+     * レビューの裁定。承認なら base へマージし、worktree を片付ける。
+     * マージコミットの名義は承認した人間（D5: author = 実行主体）。
+     */
+    suspend fun review(id: String, approve: Boolean, comment: String?, actingUser: String): RunInfo? {
+        val row = runs.get(id) ?: return null
+        val repoName = row.repo ?: error("この Run は repo リソース上で実行されていません")
+        val branch = row.branch ?: error("この Run にはレビュー対象のブランチがありません")
+        require(row.state == RunState.completed) { "完了していない Run はレビューできません（state=${row.state}）" }
+        require(row.reviewState == null) { "この Run は既にレビュー済みです（${row.reviewState}）" }
+        val resource = resources.get(repoName) ?: error("unknown repo resource: $repoName")
+
+        if (approve) {
+            val sha = withContext(Dispatchers.IO) {
+                val merged = Git.mergeForReview(resource.path, branch, id, actingUser)
+                Git.removeWorktree(resource.path, row.cwd)
+                merged
+            }
+            append(id, buildJsonObject {
+                put("type", "review_approved")
+                put("by", actingUser)
+                put("base", Git.baseBranch(resource.path))
+                put("mergeSha", sha)
+                comment?.takeIf { it.isNotBlank() }?.let { put("comment", it) }
+                put("ts", nowIso())
+            }, null)
+            withContext(Dispatchers.IO) { runs.updateReviewState(id, "approved") }
+            log.info("run {} をレビュー承認 → {} へマージ（{}）", id, branch, sha.take(7))
+        } else {
+            append(id, buildJsonObject {
+                put("type", "review_rejected")
+                put("by", actingUser)
+                comment?.takeIf { it.isNotBlank() }?.let { put("comment", it) }
+                put("ts", nowIso())
+            }, null)
+            withContext(Dispatchers.IO) { runs.updateReviewState(id, "rejected") }
+        }
+        return info(id)
+    }
 }

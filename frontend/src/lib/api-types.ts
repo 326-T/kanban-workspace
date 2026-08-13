@@ -38,4 +38,20 @@ export type RunInfo = {
   repo?: string;
   branch?: string;
   launchedBy: string;
+  /** 成果物レビュー関門の結果。未レビューは undefined */
+  reviewState?: "approved" | "rejected";
+};
+
+export type DiffFileEntry = {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  hunks: string;
+};
+
+export type DiffResponse = {
+  base: string;
+  branch: string;
+  files: DiffFileEntry[];
 };

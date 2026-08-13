@@ -1,4 +1,4 @@
-import type { Resource, RunInfo, User } from "@/lib/api-types";
+import type { DiffResponse, Resource, RunInfo, User } from "@/lib/api-types";
 
 // コントロールプレーン API の型付きクライアント。
 // UI からのサーバアクセスは必ずここを経由する。
@@ -59,6 +59,14 @@ export const api = {
 
   decidePermission: (id: string, requestId: string, allow: boolean) =>
     req(`/api/runs/${id}/permissions/${requestId}`, { method: "POST", body: JSON.stringify({ allow }) }),
+
+  getDiff: (id: string): Promise<DiffResponse> =>
+    req(`/api/runs/${id}/diff`).then((r) => jsonOrThrow<DiffResponse>(r)),
+
+  review: (id: string, approve: boolean, comment?: string): Promise<RunInfo> =>
+    req(`/api/runs/${id}/review`, { method: "POST", body: JSON.stringify({ approve, comment }) }).then((r) =>
+      jsonOrThrow<RunInfo>(r),
+    ),
 
   eventsUrl: (id: string) => `/api/runs/${id}/events`,
 };

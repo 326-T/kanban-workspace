@@ -42,7 +42,23 @@ data class RunInfo(
     val repo: String? = null,
     val branch: String? = null,
     val launchedBy: String,
+    /** 成果物レビュー関門の結果。"approved" / "rejected" / null（未レビュー） */
+    val reviewState: String? = null,
 )
+
+@Serializable
+data class DiffFileEntry(
+    val path: String,
+    val status: String,
+    val additions: Int,
+    val deletions: Int,
+    val hunks: String,
+)
+
+@Serializable
+data class DiffResponse(val base: String, val branch: String, val files: List<DiffFileEntry>)
+
+@Serializable data class ReviewRequest(val approve: Boolean = false, val comment: String? = null)
 
 @Serializable data class CreateUserRequest(val name: String, val role: String? = null)
 
@@ -86,4 +102,5 @@ data class RunRow(
     val branch: String?,
     val launchedBy: String,
     val createdAt: String,
+    val reviewState: String? = null,
 )

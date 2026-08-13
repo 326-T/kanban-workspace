@@ -11,7 +11,7 @@ data class Config(
     val dbPassword: String = env("KW_DB_PASSWORD") ?: "kw",
     val engineUrl: String = env("KW_ENGINE_URL") ?: "http://localhost:4647",
     /** ビルド済み UI の配信元。存在しなければ静的配信をスキップする */
-    val webDir: File = File(env("KW_WEB_DIR") ?: "packages/web/dist"),
+    val webDir: File = File(env("KW_WEB_DIR") ?: "frontend/dist"),
     /** worktree・作業領域の置き場 */
     val workDir: File = File(env("KW_WORK_DIR") ?: ".kw"),
     /** repo リソース未指定時の既定作業ディレクトリ */

@@ -9,6 +9,9 @@ export type RunEvent =
   | { type: "workspace_prepared"; repo: string; branch: string; path: string; ts: string }
   // Run 終了時の checkpoint コミット（agent 名義 + Run trailer, docs/workspace/identity.md）
   | { type: "checkpoint_committed"; sha: string; summary: string; ts: string }
+  // 成果物レビュー関門の裁定（backend 発行）
+  | { type: "review_approved"; by: string; base: string; mergeSha: string; comment?: string; ts: string }
+  | { type: "review_rejected"; by: string; comment?: string; ts: string }
   | { type: "assistant_message"; text: string; ts: string }
   // エンジンがターンを終えて人間の入力を待ち始めた（engine 発行）
   | { type: "awaiting_input"; ts: string }

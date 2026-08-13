@@ -108,6 +108,7 @@ class RunRepo(private val dsl: DSLContext) {
         dsl.select(
             Runs.ID, Runs.PROMPT, Runs.CWD, Runs.ENGINE, Runs.MODEL, Runs.STATE,
             Runs.COST_USD, Runs.AUTO_APPROVE, Runs.REPO, Runs.BRANCH, Runs.LAUNCHED_BY, Runs.CREATED_AT,
+            Runs.REVIEW_STATE,
         )
             .from(Runs.TABLE)
             .orderBy(Runs.CREATED_AT.desc())
@@ -127,8 +128,13 @@ class RunRepo(private val dsl: DSLContext) {
                     branch = it.get(Runs.BRANCH),
                     launchedBy = it.get(Runs.LAUNCHED_BY),
                     createdAt = it.get(Runs.CREATED_AT).iso(),
+                    reviewState = it.get(Runs.REVIEW_STATE),
                 )
             }
+
+    fun updateReviewState(id: String, state: String) {
+        dsl.update(Runs.TABLE).set(Runs.REVIEW_STATE, state).where(Runs.ID.eq(id)).execute()
+    }
 
     fun get(id: String): RunRow? = list().firstOrNull { it.id == id }
 
