@@ -44,6 +44,41 @@
 | [docs/roadmap.md](docs/roadmap.md) | 実装ロードマップ（M0: 実行基盤〜） |
 | [docs/backlog.md](docs/backlog.md) | バックログ（これからやること B1〜） |
 
+## 構成（D16）
+
+```
+core/                    kw-core — Kotlin（Ktor + jOOQ + Postgres）。唯一の公開 API
+packages/engine/         kw-engine — bun。Claude / Codex 呼び出しに特化（SSE で RunEvent を上流配信）
+packages/web/            Web UI — React + Vite（core が dist を静的配信）
+packages/shared/         RunEvent / EngineAdapter の型（TS 側の契約）
+packages/adapter-claude/ Agent SDK → RunEvent の正規化
+packages/cli/            kw CLI（現在はスタンドアロン実行。core API 化は B3）
+```
+
+## 起動方法
+
+```bash
+docker compose up -d --wait
+```
+
+```bash
+bun install
+```
+
+```bash
+bun run web:build
+```
+
+```bash
+bun run engine
+```
+
+```bash
+cd core && gradle run
+```
+
+http://localhost:4646 が UI。Web UI を触りながら開発するときは `bun run web:dev`（:5173 から core へプロキシ）。
+
 ## ステータス
 
-設計フェーズ。実装は [docs/roadmap.md](docs/roadmap.md) の M0（実行基盤 = Run カーネル）から着手する。UI は API の投影として最後に作る。
+M0（Run カーネル）は動作する状態。CLI / Web UI からエージェントを起動し、承認・対話しながら worktree 上で作業させ、エージェント名義の checkpoint コミットまで通る。次は B6（権限モデルと承認ルーティング）。詳細は [docs/backlog.md](docs/backlog.md)。
