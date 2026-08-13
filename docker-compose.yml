@@ -1,0 +1,22 @@
+# kw-core の Postgres（D16）。ローカル完結で 1 組織 = 1 VM 相当の構成を再現する。
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: kw-postgres
+    environment:
+      POSTGRES_USER: kw
+      POSTGRES_PASSWORD: kw
+      POSTGRES_DB: kw
+    ports:
+      - "55432:5432"
+    volumes:
+      # 18+ はメジャーバージョン別サブディレクトリ構成のため /var/lib/postgresql にマウントする
+      - kw-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kw -d kw"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  kw-pgdata:

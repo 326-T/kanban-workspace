@@ -10,6 +10,10 @@ export type RunEvent =
   // Run 終了時の checkpoint コミット（agent 名義 + Run trailer, docs/workspace/identity.md）
   | { type: "checkpoint_committed"; sha: string; summary: string; ts: string }
   | { type: "assistant_message"; text: string; ts: string }
+  // エンジンがターンを終えて人間の入力を待ち始めた（engine 発行）
+  | { type: "awaiting_input"; ts: string }
+  // 人間の発話。誰が言ったかを来歴として残す（core 発行）
+  | { type: "input_received"; text: string; by?: string; ts: string }
   | { type: "tool_request"; tool: string; input: unknown; callId?: string; ts: string }
   | { type: "tool_result"; summary: string; isError: boolean; callId?: string; ts: string }
   | { type: "permission_request"; requestId: string; tool: string; input: unknown; title?: string; ts: string }

@@ -146,6 +146,18 @@ export function EventTimeline({
                   </MessageContent>
                 </Message>
               );
+            case "input_received":
+              return (
+                <Message key={i} from="user">
+                  <MessageContent>
+                    {e.by ? <span className="text-muted-foreground text-xs">{e.by}</span> : null}
+                    <span className="whitespace-pre-wrap">{e.text}</span>
+                  </MessageContent>
+                </Message>
+              );
+            case "awaiting_input":
+              // 入力待ちは状態バッジとコンポーザで表現されるため、タイムラインには出さない
+              return null;
             case "permission_request": {
               const req = e as PermissionRequestEvent;
               return (

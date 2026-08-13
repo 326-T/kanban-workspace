@@ -115,6 +115,8 @@ class EngineRun {
     const queued = this.msgQueue.shift();
     if (queued !== undefined) return Promise.resolve(queued);
     this.state = "waiting_input";
+    // 「入力待ちになった」ことをイベントとして残す（core が状態を導出する）
+    this.emit({ type: "awaiting_input", ts: now() });
     return new Promise((res) => {
       this.msgWaiter = res;
     });
