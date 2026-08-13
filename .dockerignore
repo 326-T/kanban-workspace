@@ -1,8 +1,8 @@
 .git
 **/node_modules
-core/build
-core/.gradle
-packages/web/dist
+backend/build
+backend/.gradle
+frontend/dist
 .kw
 playground
 *.log

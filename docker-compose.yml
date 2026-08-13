@@ -24,11 +24,11 @@ services:
       timeout: 3s
       retries: 20
 
-  engine:
+  runner:
     build:
       context: .
-      dockerfile: Dockerfile.engine
-    container_name: kw-engine
+      dockerfile: runner/Dockerfile
+    container_name: kw-runner
     working_dir: /app
     environment:
       KW_ENGINE_PORT: 4647
@@ -54,18 +54,18 @@ services:
       timeout: 3s
       retries: 20
 
-  core:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile.core
-    container_name: kw-core
+      dockerfile: backend/Dockerfile
+    container_name: kw-backend
     working_dir: ${PWD}
     environment:
       KW_PORT: 4646
       KW_DB_URL: jdbc:postgresql://postgres:5432/kw
       KW_DB_USER: kw
       KW_DB_PASSWORD: kw
-      KW_ENGINE_URL: ${KW_ENGINE_URL:-http://engine:4647}
+      KW_ENGINE_URL: ${KW_ENGINE_URL:-http://runner:4647}
       KW_WORK_DIR: ${PWD}/.kw
       KW_DEFAULT_DIR: ${PWD}/playground
       GIT_CONFIG_COUNT: 1
@@ -78,10 +78,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      engine:
+      runner:
         condition: service_healthy
     extra_hosts:
-      # engine をホストで動かす構成（macOS の Keychain 認証を使う場合）への逃げ道
+      # runner をホストで動かす構成（macOS の Keychain 認証を使う場合）への逃げ道
       - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:4646/api/health || exit 1"]

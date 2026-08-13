@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      // RunEvent の語彙は runner が持つ。参照は型のみなので実行時依存は生まれない
+      "@kw/protocol": ["../runner/src/protocol"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

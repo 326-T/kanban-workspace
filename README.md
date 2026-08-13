@@ -47,13 +47,19 @@
 ## 構成（D16）
 
 ```
-core/                    kw-core — Kotlin（Ktor + jOOQ + Postgres）。唯一の公開 API
-packages/engine/         kw-engine — bun。Claude / Codex 呼び出しに特化（SSE で RunEvent を上流配信）
-packages/web/            Web UI — React + Vite（core が dist を静的配信）
-packages/shared/         RunEvent / EngineAdapter の型（TS 側の契約）
-packages/adapter-claude/ Agent SDK → RunEvent の正規化
-packages/cli/            kw CLI（現在はスタンドアロン実行。core API 化は B3）
+backend/    Kotlin（Ktor + jOOQ + Postgres）。唯一の公開 API
+            ドメイン（ユーザ / リソース / ACL / 承認）・権限コンパイル・worktree と
+            checkpoint コミット・イベントログの永続化と SSE 再投影・UI の静的配信
+runner/     bun。Claude / Codex の呼び出しに特化（SSE で RunEvent を上流配信）
+            src/protocol/  RunEvent の語彙（言語間契約）
+            src/adapter.ts + src/adapters/  エンジンアダプタ
+            src/engine/    エンジン API サーバ
+            src/cli.ts     ローカル実行 CLI（backend API クライアント化は B3）
+frontend/   React + Vite。backend が dist を静的配信する
+            RunEvent 型のみ runner/src/protocol を tsconfig の paths 経由で参照
 ```
+
+3 つは独立したプロジェクト（ルートに package.json は置かない）。frontend → runner の参照は **型のみ**で、実行時依存は無い。
 
 ## 起動方法
 
@@ -65,24 +71,24 @@ packages/cli/            kw CLI（現在はスタンドアロン実行。core AP
 docker compose up -d --build --wait
 ```
 
-http://localhost:4646 が UI（postgres / engine / core の 3 サービス）。
+http://localhost:4646 が UI（postgres / runner / backend の 3 サービス）。
 
 リポジトリは **ホストと同じ絶対パス**（`${PWD}:${PWD}`）でマウントしているため、worktree や checkpoint コミットはホスト側の `git` からもそのまま追える。
 
 **モデル認証について**：D13 のとおりクレデンシャルプロキシを持たないため、実行者の認証をそのまま使う。`.env` に `CLAUDE_CODE_OAUTH_TOKEN`（ホストで `claude setup-token` を実行して発行）または `ANTHROPIC_API_KEY` を置く。
 
-macOS の Claude Code は認証情報を Keychain に持つためコンテナから読めない。トークンを用意しない場合は engine だけホストで動かす：
+macOS の Claude Code は認証情報を Keychain に持つためコンテナから読めない。トークンを用意しない場合は runner だけホストで動かす：
 
 ```bash
-docker compose stop engine
+docker compose stop runner
 ```
 
 ```bash
-bun run engine
+cd runner && bun start
 ```
 
 ```bash
-KW_ENGINE_URL=http://host.docker.internal:4647 docker compose up -d --no-deps core
+KW_ENGINE_URL=http://host.docker.internal:4647 docker compose up -d --no-deps backend
 ```
 
 ### ローカル実行（開発時）
@@ -92,22 +98,18 @@ docker compose up -d --wait postgres
 ```
 
 ```bash
-bun install
+cd runner; bun install; bun start
 ```
 
 ```bash
-bun run web:build
+cd frontend; bun install; bun run build
 ```
 
 ```bash
-bun run engine
+cd backend; gradle run
 ```
 
-```bash
-cd core && gradle run
-```
-
-UI を触りながら開発するときは `bun run web:dev`（:5173 から core へプロキシ）。
+UI を触りながら開発するときは `cd frontend && bun run dev`（:5173 から backend へプロキシ）。
 
 ## ステータス
 
